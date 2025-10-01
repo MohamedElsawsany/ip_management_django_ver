@@ -57,15 +57,26 @@ def logout_view(request):
 
 @login_required
 def index(request):
-    """Main dashboard view"""
+    """Main dashboard view with improved error handling"""
     try:
-        branches = Branch.objects.annotate(ip_count=Count('ips')).order_by('name')
-        return render(request, 'ips/index.html', {'branches': branches})
+        # Get branches and let the property handle ip_count
+        branches = Branch.objects.all().order_by('name')
+        
+        context = {
+            'branches': branches
+        }
+        
+        return render(request, 'ips/index.html', context)
+        
     except Exception as e:
-        logger.error(f"Error loading dashboard: {str(e)}")
-        messages.error(request, 'Error loading dashboard')
-        return render(request, 'ips/index.html', {'branches': []})
-
+        logger.error(f"Error loading dashboard: {str(e)}", exc_info=True)
+        messages.error(request, f'Error loading dashboard: {str(e)}')
+        
+        # Return empty context to prevent template errors
+        context = {
+            'branches': []
+        }
+        return render(request, 'ips/index.html', context)
 
 @login_required
 def get_networks(request):
@@ -567,10 +578,18 @@ def get_subnets(request):
 def get_branches(request):
     """API endpoint to get branches"""
     try:
-        branches = Branch.objects.annotate(
-            ip_count=Count('ips')
-        ).values('id', 'name', 'ip_count').order_by('name')
-        return JsonResponse(list(branches), safe=False)
+        branches = Branch.objects.all().order_by('name')
+        
+        # Manually build the response with ip_count property
+        branches_data = []
+        for branch in branches:
+            branches_data.append({
+                'id': branch.id,
+                'name': branch.name,
+                'ip_count': branch.ip_count  # This uses the property from the model
+            })
+        
+        return JsonResponse(branches_data, safe=False)
     except Exception as e:
         logger.error(f"Error getting branches: {str(e)}")
         return JsonResponse({'error': str(e)}, status=500)

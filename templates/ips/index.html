@@ -35,11 +35,15 @@
                             <label for="branchSelect" class="form-label">Branch</label>
                             <select id="branchSelect" class="form-select">
                                 <option value="">-- Select a Branch --</option>
-                                {% for branch in branches %}
-                                <option value="{{ branch.id }}">
-                                    {{ branch.name }} ({{ branch.ip_count }} IPs)
-                                </option>
-                                {% endfor %}
+                                {% if branches %}
+                                    {% for branch in branches %}
+                                    <option value="{{ branch.id }}">
+                                        {{ branch.name }} ({{ branch.ip_count|default:0 }} IPs)
+                                    </option>
+                                    {% endfor %}
+                                {% else %}
+                                    <option value="" disabled>No branches available</option>
+                                {% endif %}
                             </select>
                         </div>
                         <div class="col-md-6">
@@ -135,9 +139,11 @@
                         <label for="branch" class="form-label">Branch *</label>
                         <select class="form-select" id="branch" name="branch" required>
                             <option value="">-- Select Branch --</option>
-                            {% for branch in branches %}
-                            <option value="{{ branch.id }}">{{ branch.name }}</option>
-                            {% endfor %}
+                            {% if branches %}
+                                {% for branch in branches %}
+                                <option value="{{ branch.id }}">{{ branch.name }}</option>
+                                {% endfor %}
+                            {% endif %}
                         </select>
                     </div>
                     
@@ -198,6 +204,11 @@ let ipTable;
 let currentIPId = null;
 
 $(document).ready(function() {
+    // Check if branches exist
+    if ($('#branchSelect option').length <= 1) {
+        showAlert('warning', 'No branches found. Please add branches first.');
+    }
+    
     // Load device types and subnets
     loadDeviceTypes();
     loadSubnets();
@@ -259,41 +270,66 @@ $(document).ready(function() {
 });
 
 function loadDeviceTypes() {
-    $.get('/api/device-types/', function(data) {
-        const select = $('#deviceType');
-        select.html('<option value="">-- Select Device Type --</option>');
-        data.forEach(function(type) {
-            select.append('<option value="' + type.id + '">' + type.name + '</option>');
+    $.get('/api/device-types/')
+        .done(function(data) {
+            const select = $('#deviceType');
+            select.html('<option value="">-- Select Device Type --</option>');
+            if (data && data.length > 0) {
+                data.forEach(function(type) {
+                    select.append('<option value="' + type.id + '">' + type.name + '</option>');
+                });
+            } else {
+                select.append('<option value="" disabled>No device types available</option>');
+            }
+        })
+        .fail(function(xhr, status, error) {
+            console.error('Error loading device types:', error);
+            showAlert('danger', 'Error loading device types');
         });
-    });
 }
 
 function loadSubnets() {
-    $.get('/api/subnets/', function(data) {
-        const select = $('#subnet');
-        select.html('<option value="">-- Select Subnet --</option>');
-        data.forEach(function(subnet) {
-            select.append('<option value="' + subnet.id + '">/' + subnet.prefix + ' (' + subnet.subnet_mask + ')</option>');
+    $.get('/api/subnets/')
+        .done(function(data) {
+            const select = $('#subnet');
+            select.html('<option value="">-- Select Subnet --</option>');
+            if (data && data.length > 0) {
+                data.forEach(function(subnet) {
+                    select.append('<option value="' + subnet.id + '">/' + subnet.prefix + ' (' + subnet.subnet_mask + ')</option>');
+                });
+            } else {
+                select.append('<option value="" disabled>No subnets available</option>');
+            }
+        })
+        .fail(function(xhr, status, error) {
+            console.error('Error loading subnets:', error);
+            showAlert('danger', 'Error loading subnets');
         });
-    });
 }
 
 function loadNetworks(branchId) {
     showLoading();
-    $.get('/api/networks/', {branch_id: branchId}, function(data) {
-        const select = $('#networkSelect');
-        select.html('<option value="">-- All Networks --</option>');
-        
-        data.forEach(function(network) {
-            select.append('<option value="' + network.network + '" data-subnet="' + network.subnet_id + '">' + network.network + '/' + network.prefix + ' (' + network.ip_count + ' IPs)</option>');
+    $.get('/api/networks/', {branch_id: branchId})
+        .done(function(data) {
+            const select = $('#networkSelect');
+            select.html('<option value="">-- All Networks --</option>');
+            
+            if (data && data.length > 0) {
+                data.forEach(function(network) {
+                    select.append('<option value="' + network.network + '" data-subnet="' + network.subnet_id + '">' + network.network + '/' + network.prefix + ' (' + network.ip_count + ' IPs)</option>');
+                });
+            } else {
+                select.append('<option value="" disabled>No networks found</option>');
+            }
+            
+            select.prop('disabled', false);
+            hideLoading();
+        })
+        .fail(function(xhr, status, error) {
+            hideLoading();
+            console.error('Error loading networks:', error);
+            showAlert('danger', 'Error loading networks. Please try again.');
         });
-        
-        select.prop('disabled', false);
-        hideLoading();
-    }).fail(function() {
-        hideLoading();
-        alert('Error loading networks');
-    });
 }
 
 function loadIPTable(branchId, network, subnetId) {
@@ -311,6 +347,10 @@ function loadIPTable(branchId, network, subnetId) {
                 d.branch_id = branchId;
                 d.network = $('#networkSelect').val() || '';
                 d.subnet_id = $('#networkSelect option:selected').data('subnet') || '';
+            },
+            error: function(xhr, error, thrown) {
+                console.error('DataTable error:', error);
+                showAlert('danger', 'Error loading IP addresses');
             }
         },
         columns: [
@@ -318,7 +358,12 @@ function loadIPTable(branchId, network, subnetId) {
             { data: 'device_name' },
             { data: 'device_type' },
             { data: 'subnet_mask' },
-            { data: 'description' },
+            { 
+                data: 'description',
+                render: function(data, type, row) {
+                    return data || '<em class="text-muted">No description</em>';
+                }
+            },
             {
                 data: null,
                 orderable: false,
@@ -331,8 +376,9 @@ function loadIPTable(branchId, network, subnetId) {
         order: [[0, 'asc']],
         pageLength: 25,
         language: {
-            emptyTable: "No IP addresses found",
-            zeroRecords: "No matching IP addresses found"
+            emptyTable: "No IP addresses found for this branch",
+            zeroRecords: "No matching IP addresses found",
+            processing: "Loading IP addresses..."
         }
     });
 }
@@ -348,6 +394,13 @@ function saveIP() {
         branch: $('#branch').val(),
         description: $('#description').val()
     };
+    
+    // Validate required fields
+    if (!formData.ip_address || !formData.device_name || !formData.device_type || 
+        !formData.subnet || !formData.branch) {
+        showAlert('warning', 'Please fill in all required fields');
+        return;
+    }
     
     showLoading();
     
@@ -407,8 +460,9 @@ function loadIPForEdit(ipId) {
             $('#addIPModalLabel').html('<i class="fas fa-edit me-2"></i>Edit IP Address');
             $('#addIPModal').modal('show');
         },
-        error: function() {
+        error: function(xhr) {
             hideLoading();
+            console.error('Error loading IP:', xhr);
             showAlert('danger', 'Error loading IP address');
         }
     });
