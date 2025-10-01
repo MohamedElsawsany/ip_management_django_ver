@@ -1,0 +1,468 @@
+{% extends 'base.html' %}
+
+{% block title %}Dashboard - IP Management System{% endblock %}
+
+{% block content %}
+<div class="container-fluid">
+    <div class="row">
+        <div class="col-12">
+            <div class="page-header d-flex justify-content-between align-items-center">
+                <div>
+                    <h1 class="page-title">
+                        <i class="fas fa-network-wired me-2"></i>IP Management Dashboard
+                    </h1>
+                    <p class="text-muted">Manage and monitor your network IP addresses</p>
+                </div>
+                <div>
+                    <button class="btn btn-primary" data-bs-toggle="modal" data-bs-target="#addIPModal">
+                        <i class="fas fa-plus me-2"></i>Add IP Address
+                    </button>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Branch Selection -->
+    <div class="row mb-4">
+        <div class="col-12">
+            <div class="card">
+                <div class="card-body">
+                    <h5 class="card-title mb-3">
+                        <i class="fas fa-building me-2"></i>Select Branch
+                    </h5>
+                    <div class="row g-3">
+                        <div class="col-md-6">
+                            <label for="branchSelect" class="form-label">Branch</label>
+                            <select id="branchSelect" class="form-select">
+                                <option value="">-- Select a Branch --</option>
+                                {% for branch in branches %}
+                                <option value="{{ branch.id }}">
+                                    {{ branch.name }} ({{ branch.ip_count }} IPs)
+                                </option>
+                                {% endfor %}
+                            </select>
+                        </div>
+                        <div class="col-md-6">
+                            <label for="networkSelect" class="form-label">Network (Optional)</label>
+                            <select id="networkSelect" class="form-select" disabled>
+                                <option value="">-- All Networks --</option>
+                            </select>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- IP Addresses Table -->
+    <div class="row">
+        <div class="col-12">
+            <div class="card">
+                <div class="card-body">
+                    <h5 class="card-title mb-3">
+                        <i class="fas fa-list me-2"></i>IP Addresses
+                    </h5>
+                    <div class="table-responsive">
+                        <table id="ipTable" class="table table-striped table-hover">
+                            <thead>
+                                <tr>
+                                    <th>IP Address</th>
+                                    <th>Device Name</th>
+                                    <th>Device Type</th>
+                                    <th>Subnet Mask</th>
+                                    <th>Description</th>
+                                    <th>Actions</th>
+                                </tr>
+                            </thead>
+                            <tbody>
+                                <tr>
+                                    <td colspan="6" class="text-center text-muted py-5">
+                                        <i class="fas fa-info-circle fa-2x mb-3 d-block"></i>
+                                        Please select a branch to view IP addresses
+                                    </td>
+                                </tr>
+                            </tbody>
+                        </table>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Add/Edit IP Modal -->
+<div class="modal fade" id="addIPModal" tabindex="-1" aria-labelledby="addIPModalLabel" aria-hidden="true">
+    <div class="modal-dialog">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h5 class="modal-title" id="addIPModalLabel">
+                    <i class="fas fa-plus me-2"></i>Add IP Address
+                </h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+            </div>
+            <div class="modal-body">
+                <form id="ipForm">
+                    {% csrf_token %}
+                    <input type="hidden" id="ipId" name="ip_id">
+                    
+                    <div class="mb-3">
+                        <label for="ipAddress" class="form-label">IP Address *</label>
+                        <input type="text" class="form-control" id="ipAddress" name="ip_address" 
+                               placeholder="192.168.1.1" required>
+                    </div>
+                    
+                    <div class="mb-3">
+                        <label for="deviceName" class="form-label">Device Name *</label>
+                        <input type="text" class="form-control" id="deviceName" name="device_name" 
+                               placeholder="Server-01" required>
+                    </div>
+                    
+                    <div class="mb-3">
+                        <label for="deviceType" class="form-label">Device Type *</label>
+                        <select class="form-select" id="deviceType" name="device_type" required>
+                            <option value="">-- Select Device Type --</option>
+                        </select>
+                    </div>
+                    
+                    <div class="mb-3">
+                        <label for="subnet" class="form-label">Subnet Mask *</label>
+                        <select class="form-select" id="subnet" name="subnet" required>
+                            <option value="">-- Select Subnet --</option>
+                        </select>
+                    </div>
+                    
+                    <div class="mb-3">
+                        <label for="branch" class="form-label">Branch *</label>
+                        <select class="form-select" id="branch" name="branch" required>
+                            <option value="">-- Select Branch --</option>
+                            {% for branch in branches %}
+                            <option value="{{ branch.id }}">{{ branch.name }}</option>
+                            {% endfor %}
+                        </select>
+                    </div>
+                    
+                    <div class="mb-3">
+                        <label for="description" class="form-label">Description</label>
+                        <textarea class="form-control" id="description" name="description" 
+                                  rows="3" placeholder="Optional description"></textarea>
+                    </div>
+                </form>
+            </div>
+            <div class="modal-footer">
+                <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">
+                    <i class="fas fa-times me-2"></i>Cancel
+                </button>
+                <button type="button" class="btn btn-primary" id="saveIPBtn">
+                    <i class="fas fa-save me-2"></i>Save IP Address
+                </button>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Delete Confirmation Modal -->
+<div class="modal fade" id="deleteModal" tabindex="-1" aria-labelledby="deleteModalLabel" aria-hidden="true">
+    <div class="modal-dialog">
+        <div class="modal-content">
+            <div class="modal-header bg-danger text-white">
+                <h5 class="modal-title" id="deleteModalLabel">
+                    <i class="fas fa-trash-alt me-2"></i>Confirm Delete
+                </h5>
+                <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal"></button>
+            </div>
+            <div class="modal-body">
+                <p>Are you sure you want to delete this IP address?</p>
+                <div class="alert alert-warning">
+                    <i class="fas fa-exclamation-triangle me-2"></i>
+                    <strong>IP:</strong> <span id="deleteIPAddress"></span><br>
+                    <strong>Device:</strong> <span id="deleteDeviceName"></span>
+                </div>
+                <p class="text-muted mb-0">This action cannot be undone.</p>
+            </div>
+            <div class="modal-footer">
+                <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">
+                    <i class="fas fa-times me-2"></i>Cancel
+                </button>
+                <button type="button" class="btn btn-danger" id="confirmDeleteBtn">
+                    <i class="fas fa-trash-alt me-2"></i>Delete
+                </button>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}
+
+{% block extra_js %}
+<script>
+let ipTable;
+let currentIPId = null;
+
+$(document).ready(function() {
+    // Load device types and subnets
+    loadDeviceTypes();
+    loadSubnets();
+    
+    // Branch selection change
+    $('#branchSelect').on('change', function() {
+        const branchId = $(this).val();
+        if (branchId) {
+            loadNetworks(branchId);
+            loadIPTable(branchId);
+        } else {
+            $('#networkSelect').prop('disabled', true).html('<option value="">-- All Networks --</option>');
+            if (ipTable) {
+                ipTable.destroy();
+            }
+            $('#ipTable tbody').html('<tr><td colspan="6" class="text-center text-muted py-5"><i class="fas fa-info-circle fa-2x mb-3 d-block"></i>Please select a branch to view IP addresses</td></tr>');
+        }
+    });
+    
+    // Network filter change
+    $('#networkSelect').on('change', function() {
+        if (ipTable) {
+            ipTable.ajax.reload();
+        }
+    });
+    
+    // Save IP button
+    $('#saveIPBtn').on('click', function() {
+        saveIP();
+    });
+    
+    // Delete button handler
+    $(document).on('click', '.delete-btn', function() {
+        const ipId = $(this).data('id');
+        const ipAddress = $(this).data('ip');
+        const deviceName = $(this).data('device');
+        
+        currentIPId = ipId;
+        $('#deleteIPAddress').text(ipAddress);
+        $('#deleteDeviceName').text(deviceName);
+        $('#deleteModal').modal('show');
+    });
+    
+    // Confirm delete
+    $('#confirmDeleteBtn').on('click', function() {
+        deleteIP(currentIPId);
+    });
+    
+    // Edit button handler
+    $(document).on('click', '.edit-btn', function() {
+        const ipId = $(this).data('id');
+        loadIPForEdit(ipId);
+    });
+    
+    // Reset form when modal is closed
+    $('#addIPModal').on('hidden.bs.modal', function() {
+        resetForm();
+    });
+});
+
+function loadDeviceTypes() {
+    $.get('/api/device-types/', function(data) {
+        const select = $('#deviceType');
+        select.html('<option value="">-- Select Device Type --</option>');
+        data.forEach(function(type) {
+            select.append('<option value="' + type.id + '">' + type.name + '</option>');
+        });
+    });
+}
+
+function loadSubnets() {
+    $.get('/api/subnets/', function(data) {
+        const select = $('#subnet');
+        select.html('<option value="">-- Select Subnet --</option>');
+        data.forEach(function(subnet) {
+            select.append('<option value="' + subnet.id + '">/' + subnet.prefix + ' (' + subnet.subnet_mask + ')</option>');
+        });
+    });
+}
+
+function loadNetworks(branchId) {
+    showLoading();
+    $.get('/api/networks/', {branch_id: branchId}, function(data) {
+        const select = $('#networkSelect');
+        select.html('<option value="">-- All Networks --</option>');
+        
+        data.forEach(function(network) {
+            select.append('<option value="' + network.network + '" data-subnet="' + network.subnet_id + '">' + network.network + '/' + network.prefix + ' (' + network.ip_count + ' IPs)</option>');
+        });
+        
+        select.prop('disabled', false);
+        hideLoading();
+    }).fail(function() {
+        hideLoading();
+        alert('Error loading networks');
+    });
+}
+
+function loadIPTable(branchId, network, subnetId) {
+    if (ipTable) {
+        ipTable.destroy();
+    }
+    
+    ipTable = $('#ipTable').DataTable({
+        processing: true,
+        serverSide: true,
+        ajax: {
+            url: '/api/ips/datatable/',
+            type: 'POST',
+            data: function(d) {
+                d.branch_id = branchId;
+                d.network = $('#networkSelect').val() || '';
+                d.subnet_id = $('#networkSelect option:selected').data('subnet') || '';
+            }
+        },
+        columns: [
+            { data: 'ip_address' },
+            { data: 'device_name' },
+            { data: 'device_type' },
+            { data: 'subnet_mask' },
+            { data: 'description' },
+            {
+                data: null,
+                orderable: false,
+                render: function(data, type, row) {
+                    return '<button class="btn btn-sm btn-primary edit-btn" data-id="' + row.id + '" title="Edit"><i class="fas fa-edit"></i></button> ' +
+                           '<button class="btn btn-sm btn-danger delete-btn" data-id="' + row.id + '" data-ip="' + row.ip_address + '" data-device="' + row.device_name + '" title="Delete"><i class="fas fa-trash-alt"></i></button>';
+                }
+            }
+        ],
+        order: [[0, 'asc']],
+        pageLength: 25,
+        language: {
+            emptyTable: "No IP addresses found",
+            zeroRecords: "No matching IP addresses found"
+        }
+    });
+}
+
+function saveIP() {
+    const ipId = $('#ipId').val();
+    const url = ipId ? '/ip/' + ipId + '/edit/' : '/ip/add/';
+    const formData = {
+        ip_address: $('#ipAddress').val(),
+        device_name: $('#deviceName').val(),
+        device_type: $('#deviceType').val(),
+        subnet: $('#subnet').val(),
+        branch: $('#branch').val(),
+        description: $('#description').val()
+    };
+    
+    showLoading();
+    
+    $.ajax({
+        url: url,
+        type: 'POST',
+        data: formData,
+        headers: {
+            'X-Requested-With': 'XMLHttpRequest'
+        },
+        success: function(response) {
+            hideLoading();
+            $('#addIPModal').modal('hide');
+            showAlert('success', response.message || 'IP address saved successfully');
+            
+            if ($('#branchSelect').val() && ipTable) {
+                ipTable.ajax.reload();
+            }
+        },
+        error: function(xhr) {
+            hideLoading();
+            const response = xhr.responseJSON;
+            if (response && response.errors) {
+                let errorMsg = 'Please fix the following errors:\n';
+                for (let field in response.errors) {
+                    errorMsg += '- ' + response.errors[field].join(', ') + '\n';
+                }
+                showAlert('danger', errorMsg);
+            } else {
+                showAlert('danger', response.error || 'Error saving IP address');
+            }
+        }
+    });
+}
+
+function loadIPForEdit(ipId) {
+    showLoading();
+    
+    $.ajax({
+        url: '/ip/' + ipId + '/edit/',
+        type: 'GET',
+        headers: {
+            'X-Requested-With': 'XMLHttpRequest'
+        },
+        success: function(response) {
+            hideLoading();
+            const ip = response.ip;
+            
+            $('#ipId').val(ip.id);
+            $('#ipAddress').val(ip.ip_address);
+            $('#deviceName').val(ip.device_name);
+            $('#deviceType').val(ip.device_type_id);
+            $('#subnet').val(ip.subnet_id);
+            $('#branch').val(ip.branch_id);
+            $('#description').val(ip.description);
+            
+            $('#addIPModalLabel').html('<i class="fas fa-edit me-2"></i>Edit IP Address');
+            $('#addIPModal').modal('show');
+        },
+        error: function() {
+            hideLoading();
+            showAlert('danger', 'Error loading IP address');
+        }
+    });
+}
+
+function deleteIP(ipId) {
+    showLoading();
+    
+    $.ajax({
+        url: '/ip/' + ipId + '/delete/',
+        type: 'POST',
+        headers: {
+            'X-Requested-With': 'XMLHttpRequest'
+        },
+        success: function(response) {
+            hideLoading();
+            $('#deleteModal').modal('hide');
+            showAlert('success', response.message || 'IP address deleted successfully');
+            
+            if (ipTable) {
+                ipTable.ajax.reload();
+            }
+        },
+        error: function(xhr) {
+            hideLoading();
+            const response = xhr.responseJSON;
+            showAlert('danger', response.error || 'Error deleting IP address');
+        }
+    });
+}
+
+function resetForm() {
+    $('#ipForm')[0].reset();
+    $('#ipId').val('');
+    $('#addIPModalLabel').html('<i class="fas fa-plus me-2"></i>Add IP Address');
+}
+
+function showAlert(type, message) {
+    const alertHtml = '<div class="alert alert-' + type + ' alert-dismissible fade show" role="alert">' +
+        '<i class="fas fa-' + (type === 'success' ? 'check-circle' : 'exclamation-circle') + ' me-2"></i>' +
+        message +
+        '<button type="button" class="btn-close" data-bs-dismiss="alert"></button>' +
+        '</div>';
+    
+    $('.container-fluid .alert').remove();
+    $('.container-fluid').prepend(alertHtml);
+    
+    setTimeout(function() {
+        $('.alert').fadeOut('slow', function() {
+            $(this).remove();
+        });
+    }, 5000);
+    
+    $('html, body').animate({ scrollTop: 0 }, 'fast');
+}
+</script>
+{% endblock %}
