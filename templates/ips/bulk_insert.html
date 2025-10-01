@@ -27,34 +27,43 @@
                                 <label for="startIP" class="form-label">Start IP Address *</label>
                                 <input type="text" class="form-control" id="startIP" name="start_ip" 
                                        placeholder="172.16.0.0" required>
-                                <small class="text-muted">Beginning of IP range</small>
-                            </div>
-                            <div class="col-md-6">
-                                <label for="endIP" class="form-label">End IP Address *</label>
-                                <input type="text" class="form-control" id="endIP" name="end_ip" 
-                                       placeholder="172.31.255.255" required>
-                                <small class="text-muted">End of IP range</small>
-                            </div>
-                        </div>
-                        
-                        <div class="row mb-3">
-                            <div class="col-md-6">
-                                <label for="branchBulk" class="form-label">Branch *</label>
-                                <select class="form-select" id="branchBulk" name="branch_id" required>
-                                    <option value="">-- Select Branch --</option>
-                                    {% for branch in branches %}
-                                    <option value="{{ branch.id }}">{{ branch.name }}</option>
-                                    {% endfor %}
-                                </select>
+                                <small class="text-muted">Network starting address</small>
                             </div>
                             <div class="col-md-6">
                                 <label for="subnetBulk" class="form-label">Subnet Mask *</label>
                                 <select class="form-select" id="subnetBulk" name="subnet_id" required>
                                     <option value="">-- Select Subnet --</option>
                                     {% for subnet in subnets %}
-                                    <option value="{{ subnet.id }}">
-                                        /{{ subnet.prefix }} ({{ subnet.subnet_mask }})
+                                    <option value="{{ subnet.id }}" 
+                                            data-prefix="{{ subnet.prefix }}" 
+                                            data-mask="{{ subnet.subnet_mask }}"
+                                            data-usable="{{ subnet.usable_hosts }}">
+                                        /{{ subnet.prefix }} ({{ subnet.subnet_mask }}) - {{ subnet.usable_hosts|floatformat:0 }} usable hosts
                                     </option>
+                                    {% endfor %}
+                                </select>
+                                <small class="text-muted">Select subnet to auto-calculate range</small>
+                            </div>
+                        </div>
+                        
+                        <div class="row mb-3">
+                            <div class="col-md-6">
+                                <label for="endIP" class="form-label">
+                                    End IP Address *
+                                    <span class="badge bg-info" id="autoCalcBadge" style="display: none;">
+                                        <i class="fas fa-magic"></i> Auto-calculated
+                                    </span>
+                                </label>
+                                <input type="text" class="form-control" id="endIP" name="end_ip" 
+                                       placeholder="172.31.255.255" required>
+                                <small class="text-muted">Automatically calculated or enter manually</small>
+                            </div>
+                            <div class="col-md-6">
+                                <label for="branchBulk" class="form-label">Branch *</label>
+                                <select class="form-select" id="branchBulk" name="branch_id" required>
+                                    <option value="">-- Select Branch --</option>
+                                    {% for branch in branches %}
+                                    <option value="{{ branch.id }}">{{ branch.name }}</option>
                                     {% endfor %}
                                 </select>
                             </div>
@@ -74,7 +83,7 @@
                                 <label for="devicePrefix" class="form-label">Device Name Prefix *</label>
                                 <input type="text" class="form-control" id="devicePrefix" 
                                        name="device_name_prefix" value="Device" required>
-                                <small class="text-muted">e.g., "Device" → "Device-192-168-1-1"</small>
+                                <small class="text-muted">e.g., "Device" → "Device-172-16-0-1"</small>
                             </div>
                         </div>
                         
@@ -115,12 +124,27 @@
                         <i class="fas fa-info-circle me-2"></i>Instructions
                     </h5>
                     <ul class="mb-0">
-                        <li>Enter the start and end IP addresses for the range</li>
-                        <li>Select the branch, subnet, and device type</li>
-                        <li>Choose a prefix for device names</li>
+                        <li>Enter the start IP address</li>
+                        <li>Select subnet mask - end IP will be auto-calculated</li>
+                        <li>Or manually enter both start and end IPs</li>
+                        <li>Select branch and device type</li>
                         <li>Maximum 5,000,000 IPs per operation</li>
-                        <li>Process may take time for large ranges</li>
+                        <li>Large ranges may take time to process</li>
                     </ul>
+                </div>
+            </div>
+            
+            <div class="card mb-3" id="subnetInfoCard" style="display: none;">
+                <div class="card-body">
+                    <h5 class="card-title">
+                        <i class="fas fa-network-wired me-2"></i>Subnet Information
+                    </h5>
+                    <div id="subnetDetails" class="alert alert-info mb-0">
+                        <p class="mb-1"><strong>Subnet:</strong> <span id="subnetDisplay">-</span></p>
+                        <p class="mb-1"><strong>Mask:</strong> <span id="maskDisplay">-</span></p>
+                        <p class="mb-1"><strong>Total Addresses:</strong> <span id="totalAddresses">-</span></p>
+                        <p class="mb-0"><strong>Usable Hosts:</strong> <span id="usableHosts">-</span></p>
+                    </div>
                 </div>
             </div>
             
@@ -130,7 +154,10 @@
                         <i class="fas fa-calculator me-2"></i>IP Range Calculator
                     </h5>
                     <div id="rangeInfo" class="alert alert-info mb-0">
-                        <p class="mb-0">Enter IP range to calculate total addresses</p>
+                        <p class="mb-0">
+                            <i class="fas fa-info-circle me-2"></i>
+                            Enter start IP and select subnet to calculate range
+                        </p>
                     </div>
                 </div>
             </div>
@@ -221,10 +248,20 @@
 
 {% block extra_js %}
 <script>
+let autoCalculated = false;
+
 $(document).ready(function() {
-    // Calculate IP range on input
-    $('#startIP, #endIP').on('input', function() {
-        calculateRange();
+    // Auto-calculate end IP when start IP or subnet changes
+    $('#startIP, #subnetBulk').on('change input', function() {
+        autoCalculateEndIP();
+    });
+    
+    // Manual change detection for end IP
+    $('#endIP').on('input', function() {
+        if (!autoCalculated) {
+            calculateRange();
+        }
+        autoCalculated = false;
     });
     
     // Form submission
@@ -234,12 +271,158 @@ $(document).ready(function() {
     });
 });
 
+function autoCalculateEndIP() {
+    const startIP = $('#startIP').val().trim();
+    const subnetOption = $('#subnetBulk option:selected');
+    const prefix = parseInt(subnetOption.data('prefix'));
+    
+    if (!startIP || !prefix || prefix < 1 || prefix > 32) {
+        $('#autoCalcBadge').hide();
+        $('#subnetInfoCard').slideUp();
+        $('#rangeInfo').html('<p class="mb-0"><i class="fas fa-info-circle me-2"></i>Enter start IP and select subnet to calculate range</p>');
+        return;
+    }
+    
+    try {
+        // Validate IP format
+        if (!isValidIP(startIP)) {
+            throw new Error('Invalid IP format');
+        }
+        
+        // Show subnet information
+        const subnetMask = subnetOption.data('mask');
+        const usableHosts = parseInt(subnetOption.data('usable'));
+        const totalAddresses = Math.pow(2, 32 - prefix);
+        
+        $('#subnetDisplay').text('/' + prefix);
+        $('#maskDisplay').text(subnetMask);
+        $('#totalAddresses').text(totalAddresses.toLocaleString());
+        $('#usableHosts').text(usableHosts.toLocaleString());
+        $('#subnetInfoCard').slideDown();
+        
+        // Calculate network address and broadcast address
+        const startInt = ipToInt(startIP);
+        const hostBits = 32 - prefix;
+        
+        // Handle all subnet sizes from /1 to /32
+        let networkMask;
+        if (prefix === 32) {
+            networkMask = 0xFFFFFFFF;
+        } else if (prefix === 31) {
+            networkMask = 0xFFFFFFFE;
+        } else {
+            networkMask = (0xFFFFFFFF << hostBits) >>> 0;
+        }
+        
+        const networkAddress = (startInt & networkMask) >>> 0;
+        
+        // Calculate broadcast/end address
+        let broadcastAddress;
+        let firstUsableIP;
+        let lastUsableIP;
+        
+        if (prefix === 32) {
+            // /32 - single host, start and end are the same
+            broadcastAddress = networkAddress;
+            firstUsableIP = networkAddress;
+            lastUsableIP = networkAddress;
+        } else if (prefix === 31) {
+            // /31 - point-to-point (RFC 3021), both IPs are usable
+            broadcastAddress = (networkAddress | 0x00000001) >>> 0;
+            firstUsableIP = networkAddress;
+            lastUsableIP = broadcastAddress;
+        } else {
+            // All other subnets - exclude network and broadcast
+            const wildcardMask = (~networkMask) >>> 0;
+            broadcastAddress = (networkAddress | wildcardMask) >>> 0;
+            firstUsableIP = (networkAddress + 1) >>> 0; // Skip network address
+            lastUsableIP = (broadcastAddress - 1) >>> 0; // Skip broadcast address
+        }
+        
+        // Set start IP to first usable IP
+        const startIPCalculated = intToIp(firstUsableIP);
+        const endIP = intToIp(lastUsableIP);
+        $('#endIP').val(endIP);
+        
+        // Show network information
+        const networkIP = intToIp(networkAddress);
+        const broadcastIP = intToIp(broadcastAddress);
+        
+        // Update start IP if needed
+        if (startIP !== startIPCalculated) {
+            $('#startIP').val(startIPCalculated);
+            
+            // Show detailed notification about network adjustment
+            let notificationMsg = `Network adjusted:<br>`;
+            notificationMsg += `<small><strong>Network:</strong> ${networkIP} (excluded)<br>`;
+            notificationMsg += `<strong>First usable:</strong> ${startIPCalculated}<br>`;
+            notificationMsg += `<strong>Last usable:</strong> ${endIP}<br>`;
+            
+            if (prefix > 1) {
+                notificationMsg += `<strong>Broadcast:</strong> ${broadcastIP} (excluded)</small>`;
+            } else {
+                notificationMsg += `</small>`;
+            }
+            
+            showNotification('info', notificationMsg);
+        }
+        
+        autoCalculated = true;
+        $('#autoCalcBadge').fadeIn();
+        
+        // Calculate range
+        calculateRange();
+        
+    } catch (e) {
+        console.error('Error calculating end IP:', e);
+        $('#autoCalcBadge').hide();
+        $('#rangeInfo').html('<p class="mb-0 text-danger"><i class="fas fa-exclamation-triangle me-2"></i>Invalid IP address format</p>');
+    }
+}
+
+function isValidIP(ip) {
+    const parts = ip.split('.');
+    if (parts.length !== 4) return false;
+    
+    for (let part of parts) {
+        const num = parseInt(part);
+        if (isNaN(num) || num < 0 || num > 255) return false;
+    }
+    return true;
+}
+
+function showNotification(type, message) {
+    const iconMap = {
+        'info': 'info-circle',
+        'success': 'check-circle',
+        'warning': 'exclamation-triangle',
+        'danger': 'exclamation-circle'
+    };
+    
+    const alertHtml = `
+        <div class="alert alert-${type} alert-dismissible fade show position-fixed" 
+             style="top: 80px; right: 20px; z-index: 9999; min-width: 300px; max-width: 500px;" 
+             role="alert">
+            <i class="fas fa-${iconMap[type]} me-2"></i>${message}
+            <button type="button" class="btn-close" data-bs-dismiss="alert"></button>
+        </div>
+    `;
+    
+    $('body').append(alertHtml);
+    
+    setTimeout(function() {
+        $('.alert.position-fixed').fadeOut('slow', function() {
+            $(this).remove();
+        });
+    }, 5000);
+}
+
 function calculateRange() {
     const startIP = $('#startIP').val();
     const endIP = $('#endIP').val();
     
     if (!startIP || !endIP) {
-        $('#rangeInfo').html('<p class="mb-0">Enter IP range to calculate total addresses</p>');
+        $('#rangeInfo').html('<p class="mb-0"><i class="fas fa-info-circle me-2"></i>Enter start IP and select subnet to calculate range</p>');
         return;
     }
     
@@ -255,6 +438,117 @@ function calculateRange() {
         const total = end - start + 1;
         const formatted = total.toLocaleString();
         
+        // Calculate network size classification for display
+        let networkSize = '';
+        let subnetPrefix = '';
+        
+        // Determine subnet size based on total IPs
+        if (total === 1) {
+            networkSize = ' (Single Host - /32)';
+            subnetPrefix = '/32';
+        } else if (total === 2) {
+            networkSize = ' (Point-to-Point - /31)';
+            subnetPrefix = '/31';
+        } else if (total === 2) {
+            // /30 has 4 total but only 2 usable
+            networkSize = ' (/30 - Point-to-Point subnet)';
+            subnetPrefix = '/30';
+        } else if (total === 6) {
+            networkSize = ' (/29 subnet - 6 usable)';
+            subnetPrefix = '/29';
+        } else if (total === 14) {
+            networkSize = ' (/28 subnet - 14 usable)';
+            subnetPrefix = '/28';
+        } else if (total === 30) {
+            networkSize = ' (/27 subnet - 30 usable)';
+            subnetPrefix = '/27';
+        } else if (total === 62) {
+            networkSize = ' (/26 subnet - 62 usable)';
+            subnetPrefix = '/26';
+        } else if (total === 126) {
+            networkSize = ' (/25 subnet - 126 usable)';
+            subnetPrefix = '/25';
+        } else if (total === 254) {
+            networkSize = ' (/24 Class C - 254 usable)';
+            subnetPrefix = '/24';
+        } else if (total === 510) {
+            networkSize = ' (/23 subnet - 510 usable)';
+            subnetPrefix = '/23';
+        } else if (total === 1022) {
+            networkSize = ' (/22 subnet - 1,022 usable)';
+            subnetPrefix = '/22';
+        } else if (total === 2046) {
+            networkSize = ' (/21 subnet - 2,046 usable)';
+            subnetPrefix = '/21';
+        } else if (total === 4094) {
+            networkSize = ' (/20 subnet - 4,094 usable)';
+            subnetPrefix = '/20';
+        } else if (total === 8190) {
+            networkSize = ' (/19 subnet - 8,190 usable)';
+            subnetPrefix = '/19';
+        } else if (total === 16382) {
+            networkSize = ' (/18 subnet - 16,382 usable)';
+            subnetPrefix = '/18';
+        } else if (total === 32766) {
+            networkSize = ' (/17 subnet - 32,766 usable)';
+            subnetPrefix = '/17';
+        } else if (total === 65534) {
+            networkSize = ' (/16 Class B - 65,534 usable)';
+            subnetPrefix = '/16';
+        } else if (total === 131070) {
+            networkSize = ' (/15 subnet - 131,070 usable)';
+            subnetPrefix = '/15';
+        } else if (total === 262142) {
+            networkSize = ' (/14 subnet - 262,142 usable)';
+            subnetPrefix = '/14';
+        } else if (total === 524286) {
+            networkSize = ' (/13 subnet - 524,286 usable)';
+            subnetPrefix = '/13';
+        } else if (total === 1048574) {
+            networkSize = ' (/12 subnet - 1,048,574 usable)';
+            subnetPrefix = '/12';
+        } else if (total === 2097150) {
+            networkSize = ' (/11 subnet - 2,097,150 usable)';
+            subnetPrefix = '/11';
+        } else if (total === 4194302) {
+            networkSize = ' (/10 subnet - 4,194,302 usable)';
+            subnetPrefix = '/10';
+        } else if (total === 8388606) {
+            networkSize = ' (/9 subnet - 8,388,606 usable)';
+            subnetPrefix = '/9';
+        } else if (total === 16777214) {
+            networkSize = ' (/8 Class A - 16,777,214 usable)';
+            subnetPrefix = '/8';
+        } else if (total === 33554430) {
+            networkSize = ' (/7 subnet - 33,554,430 usable)';
+            subnetPrefix = '/7';
+        } else if (total === 67108862) {
+            networkSize = ' (/6 subnet - 67,108,862 usable)';
+            subnetPrefix = '/6';
+        } else if (total === 134217726) {
+            networkSize = ' (/5 subnet - 134,217,726 usable)';
+            subnetPrefix = '/5';
+        } else if (total === 268435454) {
+            networkSize = ' (/4 subnet - 268,435,454 usable)';
+            subnetPrefix = '/4';
+        } else if (total === 536870910) {
+            networkSize = ' (/3 subnet - 536,870,910 usable)';
+            subnetPrefix = '/3';
+        } else if (total === 1073741822) {
+            networkSize = ' (/2 subnet - 1,073,741,822 usable)';
+            subnetPrefix = '/2';
+        } else if (total === 2147483646) {
+            networkSize = ' (/1 subnet - Half of IPv4 space)';
+            subnetPrefix = '/1';
+        } else if (total > 2147483646) {
+            networkSize = ' (Entire IPv4 space or larger)';
+            subnetPrefix = '';
+        } else {
+            // Custom range, not a standard subnet
+            networkSize = ' (Custom range)';
+            subnetPrefix = '';
+        }
+        
         let alertClass = 'alert-info';
         let icon = 'fa-info-circle';
         
@@ -267,23 +561,60 @@ function calculateRange() {
         } else if (total > 100000) {
             alertClass = 'alert-warning';
             icon = 'fa-info-circle';
+        } else if (total > 10000) {
+            alertClass = 'alert-info';
+            icon = 'fa-info-circle';
+        } else if (total > 1000) {
+            alertClass = 'alert-info';
+            icon = 'fa-info-circle';
         } else {
             alertClass = 'alert-success';
             icon = 'fa-check-circle';
         }
         
         $('#rangeInfo').removeClass().addClass(`alert ${alertClass} mb-0`);
-        $('#rangeInfo').html(`
-            <p class="mb-2"><i class="fas ${icon} me-2"></i><strong>Total IPs: ${formatted}</strong></p>
-            <small>From: ${startIP}</small><br>
-            <small>To: ${endIP}</small>
-        `);
         
-        if (total > 5000000) {
-            $('#rangeInfo').append('<hr><small class="text-danger"><strong>⚠️ Range exceeds maximum limit of 5,000,000 IPs</strong></small>');
-        } else if (total > 100000) {
-            $('#rangeInfo').append('<hr><small>⏱️ Large range may take several minutes to process</small>');
+        let rangeHtml = `
+            <p class="mb-2">
+                <i class="fas ${icon} me-2"></i>
+                <strong>Total IPs: ${formatted}${networkSize}</strong>
+            </p>
+        `;
+        
+        // Add subnet classification if applicable
+        if (subnetPrefix) {
+            const selectedPrefix = $('#subnetBulk option:selected').data('prefix');
+            if (selectedPrefix) {
+                rangeHtml += `<p class="mb-2"><small class="text-muted"><strong>Network:</strong> ${subnetPrefix} • <strong>Usable hosts:</strong> ${formatted}</small></p>`;
+            }
         }
+        
+        rangeHtml += `
+            <small><strong>From:</strong> ${startIP}</small><br>
+            <small><strong>To:</strong> ${endIP}</small>
+        `;
+        
+        $('#rangeInfo').html(rangeHtml);
+        
+        // Add warnings and time estimates
+        if (total > 5000000) {
+            $('#rangeInfo').append('<hr class="my-2"><small class="text-danger"><strong>⚠️ Range exceeds maximum limit of 5,000,000 IPs</strong><br>Please select a smaller range.</small>');
+        } else if (total > 2000000) {
+            $('#rangeInfo').append('<hr class="my-2"><small class="text-warning">⏱️ Very large range - may take 30-60 minutes to process</small>');
+        } else if (total > 1000000) {
+            $('#rangeInfo').append('<hr class="my-2"><small class="text-warning">⏱️ Large range - may take 15-30 minutes to process</small>');
+        } else if (total > 500000) {
+            $('#rangeInfo').append('<hr class="my-2"><small class="text-info">⏱️ Medium-large range - may take 5-15 minutes</small>');
+        } else if (total > 100000) {
+            $('#rangeInfo').append('<hr class="my-2"><small class="text-info">⏱️ Medium range - may take 2-5 minutes</small>');
+        } else if (total > 10000) {
+            $('#rangeInfo').append('<hr class="my-2"><small>⏱️ Expected processing time: 30-120 seconds</small>');
+        } else if (total > 1000) {
+            $('#rangeInfo').append('<hr class="my-2"><small>⏱️ Expected processing time: 10-30 seconds</small>');
+        } else {
+            $('#rangeInfo').append('<hr class="my-2"><small class="text-success">✓ Quick processing expected (under 10 seconds)</small>');
+        }
+        
     } catch (e) {
         $('#rangeInfo').html('<p class="mb-0 text-danger"><i class="fas fa-exclamation-triangle me-2"></i>Invalid IP address format</p>');
     }
@@ -292,8 +623,17 @@ function calculateRange() {
 function ipToInt(ip) {
     const parts = ip.split('.');
     if (parts.length !== 4) throw new Error('Invalid IP');
-    return (parseInt(parts[0]) << 24) + (parseInt(parts[1]) << 16) + 
-           (parseInt(parts[2]) << 8) + parseInt(parts[3]);
+    return ((parseInt(parts[0]) << 24) + (parseInt(parts[1]) << 16) + 
+           (parseInt(parts[2]) << 8) + parseInt(parts[3])) >>> 0;
+}
+
+function intToIp(int) {
+    return [
+        (int >>> 24) & 255,
+        (int >>> 16) & 255,
+        (int >>> 8) & 255,
+        int & 255
+    ].join('.');
 }
 
 function startBulkInsert() {
