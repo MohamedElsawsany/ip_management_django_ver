@@ -1,3 +1,4 @@
+# ips/urls.py
 from django.urls import path
 from . import views
 
@@ -11,9 +12,10 @@ urlpatterns = [
     path('bulk-insert/', views.bulk_insert, name='bulk_insert'),
     
     # IP CRUD operations
-    path('ip/add/', views.add_ip, name='add_ip'),
-    path('ip//edit/', views.edit_ip, name='edit_ip'),
-    path('ip//delete/', views.delete_ip, name='delete_ip'),
+    path('ip/<int:ip_id>/edit/', views.edit_ip, name='edit_ip'),
+    
+    # Ping feature
+    path('ip/<int:ip_id>/ping/', views.ping_ip, name='ping_ip'),
     
     # API endpoints
     path('api/branches/', views.get_branches, name='api_branches'),

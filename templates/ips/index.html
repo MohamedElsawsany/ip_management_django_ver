@@ -11,12 +11,19 @@
                     <h1 class="page-title">
                         <i class="fas fa-network-wired me-2"></i>IP Management Dashboard
                     </h1>
-                    <p class="text-muted">Manage and monitor your network IP addresses</p>
-                </div>
-                <div>
-                    <button class="btn btn-primary" data-bs-toggle="modal" data-bs-target="#addIPModal">
-                        <i class="fas fa-plus me-2"></i>Add IP Address
-                    </button>
+                    <p class="text-muted">
+                        Manage and monitor your network IP addresses
+                        {% if not is_admin and user_branch %}
+                        <span class="badge bg-info ms-2">
+                            <i class="fas fa-building me-1"></i>{{ user_branch.name }}
+                        </span>
+                        {% endif %}
+                        {% if is_admin %}
+                        <span class="badge bg-success ms-2">
+                            <i class="fas fa-user-shield me-1"></i>Administrator
+                        </span>
+                        {% endif %}
+                    </p>
                 </div>
             </div>
         </div>
@@ -94,13 +101,13 @@
     </div>
 </div>
 
-<!-- Add/Edit IP Modal -->
-<div class="modal fade" id="addIPModal" tabindex="-1" aria-labelledby="addIPModalLabel" aria-hidden="true">
+<!-- Edit IP Modal -->
+<div class="modal fade" id="editIPModal" tabindex="-1" aria-labelledby="editIPModalLabel" aria-hidden="true">
     <div class="modal-dialog">
         <div class="modal-content">
             <div class="modal-header">
-                <h5 class="modal-title" id="addIPModalLabel">
-                    <i class="fas fa-plus me-2"></i>Add IP Address
+                <h5 class="modal-title" id="editIPModalLabel">
+                    <i class="fas fa-edit me-2"></i>Edit IP Address
                 </h5>
                 <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
             </div>
@@ -159,38 +166,41 @@
                     <i class="fas fa-times me-2"></i>Cancel
                 </button>
                 <button type="button" class="btn btn-primary" id="saveIPBtn">
-                    <i class="fas fa-save me-2"></i>Save IP Address
+                    <i class="fas fa-save me-2"></i>Save Changes
                 </button>
             </div>
         </div>
     </div>
 </div>
 
-<!-- Delete Confirmation Modal -->
-<div class="modal fade" id="deleteModal" tabindex="-1" aria-labelledby="deleteModalLabel" aria-hidden="true">
-    <div class="modal-dialog">
+<!-- Ping Result Modal -->
+<div class="modal fade" id="pingModal" tabindex="-1" aria-labelledby="pingModalLabel" aria-hidden="true">
+    <div class="modal-dialog modal-lg">
         <div class="modal-content">
-            <div class="modal-header bg-danger text-white">
-                <h5 class="modal-title" id="deleteModalLabel">
-                    <i class="fas fa-trash-alt me-2"></i>Confirm Delete
+            <div class="modal-header" id="pingModalHeader">
+                <h5 class="modal-title" id="pingModalLabel">
+                    <i class="fas fa-satellite-dish me-2"></i>Ping Result
                 </h5>
-                <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal"></button>
+                <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
             </div>
             <div class="modal-body">
-                <p>Are you sure you want to delete this IP address?</p>
-                <div class="alert alert-warning">
-                    <i class="fas fa-exclamation-triangle me-2"></i>
-                    <strong>IP:</strong> <span id="deleteIPAddress"></span><br>
-                    <strong>Device:</strong> <span id="deleteDeviceName"></span>
+                <div class="text-center mb-3" id="pingStatus">
+                    <div class="spinner-border text-primary" role="status">
+                        <span class="visually-hidden">Pinging...</span>
+                    </div>
+                    <p class="mt-2">Pinging <strong id="pingIPAddress"></strong>...</p>
                 </div>
-                <p class="text-muted mb-0">This action cannot be undone.</p>
+                <div id="pingOutput" style="display: none;">
+                    <div class="alert" id="pingAlert">
+                        <h6 id="pingResultTitle"></h6>
+                        <p class="mb-0"><strong>Device:</strong> <span id="pingDeviceName"></span></p>
+                    </div>
+                    <pre id="pingOutputText" style="background: #f8f9fa; padding: 1rem; border-radius: 6px; max-height: 300px; overflow-y: auto;"></pre>
+                </div>
             </div>
             <div class="modal-footer">
                 <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">
-                    <i class="fas fa-times me-2"></i>Cancel
-                </button>
-                <button type="button" class="btn btn-danger" id="confirmDeleteBtn">
-                    <i class="fas fa-trash-alt me-2"></i>Delete
+                    <i class="fas fa-times me-2"></i>Close
                 </button>
             </div>
         </div>
@@ -206,7 +216,7 @@ let currentIPId = null;
 $(document).ready(function() {
     // Check if branches exist
     if ($('#branchSelect option').length <= 1) {
-        showAlert('warning', 'No branches found. Please add branches first.');
+        showAlert('warning', 'No branches found. Please contact administrator.');
     }
     
     // Load device types and subnets
@@ -240,31 +250,21 @@ $(document).ready(function() {
         saveIP();
     });
     
-    // Delete button handler
-    $(document).on('click', '.delete-btn', function() {
-        const ipId = $(this).data('id');
-        const ipAddress = $(this).data('ip');
-        const deviceName = $(this).data('device');
-        
-        currentIPId = ipId;
-        $('#deleteIPAddress').text(ipAddress);
-        $('#deleteDeviceName').text(deviceName);
-        $('#deleteModal').modal('show');
-    });
-    
-    // Confirm delete
-    $('#confirmDeleteBtn').on('click', function() {
-        deleteIP(currentIPId);
-    });
-    
     // Edit button handler
     $(document).on('click', '.edit-btn', function() {
         const ipId = $(this).data('id');
         loadIPForEdit(ipId);
     });
     
+    // Ping button handler
+    $(document).on('click', '.ping-btn', function() {
+        const ipId = $(this).data('id');
+        const ipAddress = $(this).data('ip');
+        pingIP(ipId, ipAddress);
+    });
+    
     // Reset form when modal is closed
-    $('#addIPModal').on('hidden.bs.modal', function() {
+    $('#editIPModal').on('hidden.bs.modal', function() {
         resetForm();
     });
 });
@@ -368,8 +368,13 @@ function loadIPTable(branchId, network, subnetId) {
                 data: null,
                 orderable: false,
                 render: function(data, type, row) {
-                    return '<button class="btn btn-sm btn-primary edit-btn" data-id="' + row.id + '" title="Edit"><i class="fas fa-edit"></i></button> ' +
-                           '<button class="btn btn-sm btn-danger delete-btn" data-id="' + row.id + '" data-ip="' + row.ip_address + '" data-device="' + row.device_name + '" title="Delete"><i class="fas fa-trash-alt"></i></button>';
+                    let buttons = '<button class="btn btn-sm btn-info ping-btn me-1" data-id="' + row.id + '" data-ip="' + row.ip_address + '" title="Ping"><i class="fas fa-satellite-dish"></i></button>';
+                    
+                    if (row.can_edit) {
+                        buttons += ' <button class="btn btn-sm btn-primary edit-btn" data-id="' + row.id + '" title="Edit"><i class="fas fa-edit"></i></button>';
+                    }
+                    
+                    return buttons;
                 }
             }
         ],
@@ -385,7 +390,7 @@ function loadIPTable(branchId, network, subnetId) {
 
 function saveIP() {
     const ipId = $('#ipId').val();
-    const url = ipId ? '/ip/' + ipId + '/edit/' : '/ip/add/';
+    const url = '/ip/' + ipId + '/edit/';
     const formData = {
         ip_address: $('#ipAddress').val(),
         device_name: $('#deviceName').val(),
@@ -413,8 +418,8 @@ function saveIP() {
         },
         success: function(response) {
             hideLoading();
-            $('#addIPModal').modal('hide');
-            showAlert('success', response.message || 'IP address saved successfully');
+            $('#editIPModal').modal('hide');
+            showAlert('success', response.message || 'IP address updated successfully');
             
             if ($('#branchSelect').val() && ipTable) {
                 ipTable.ajax.reload();
@@ -457,39 +462,60 @@ function loadIPForEdit(ipId) {
             $('#branch').val(ip.branch_id);
             $('#description').val(ip.description);
             
-            $('#addIPModalLabel').html('<i class="fas fa-edit me-2"></i>Edit IP Address');
-            $('#addIPModal').modal('show');
-        },
-        error: function(xhr) {
-            hideLoading();
-            console.error('Error loading IP:', xhr);
-            showAlert('danger', 'Error loading IP address');
-        }
-    });
-}
-
-function deleteIP(ipId) {
-    showLoading();
-    
-    $.ajax({
-        url: '/ip/' + ipId + '/delete/',
-        type: 'POST',
-        headers: {
-            'X-Requested-With': 'XMLHttpRequest'
-        },
-        success: function(response) {
-            hideLoading();
-            $('#deleteModal').modal('hide');
-            showAlert('success', response.message || 'IP address deleted successfully');
-            
-            if (ipTable) {
-                ipTable.ajax.reload();
-            }
+            $('#editIPModal').modal('show');
         },
         error: function(xhr) {
             hideLoading();
             const response = xhr.responseJSON;
-            showAlert('danger', response.error || 'Error deleting IP address');
+            showAlert('danger', response.error || 'Error loading IP address');
+        }
+    });
+}
+
+function pingIP(ipId, ipAddress) {
+    // Show modal
+    $('#pingModal').modal('show');
+    $('#pingIPAddress').text(ipAddress);
+    $('#pingStatus').show();
+    $('#pingOutput').hide();
+    
+    // Reset header color
+    $('#pingModalHeader').removeClass('bg-success bg-danger bg-warning').addClass('bg-primary text-white');
+    
+    $.ajax({
+        url: '/ip/' + ipId + '/ping/',
+        type: 'GET',
+        success: function(response) {
+            $('#pingStatus').hide();
+            $('#pingOutput').show();
+            
+            $('#pingDeviceName').text(response.device_name);
+            $('#pingOutputText').text(response.output);
+            
+            if (response.success) {
+                $('#pingModalHeader').removeClass('bg-primary bg-danger bg-warning').addClass('bg-success text-white');
+                $('#pingAlert').removeClass().addClass('alert alert-success');
+                $('#pingResultTitle').html('<i class="fas fa-check-circle me-2"></i>Ping Successful - Host is Online');
+            } else if (response.status === 'timeout') {
+                $('#pingModalHeader').removeClass('bg-primary bg-success bg-danger').addClass('bg-warning text-white');
+                $('#pingAlert').removeClass().addClass('alert alert-warning');
+                $('#pingResultTitle').html('<i class="fas fa-clock me-2"></i>Ping Timeout');
+            } else {
+                $('#pingModalHeader').removeClass('bg-primary bg-success bg-warning').addClass('bg-danger text-white');
+                $('#pingAlert').removeClass().addClass('alert alert-danger');
+                $('#pingResultTitle').html('<i class="fas fa-times-circle me-2"></i>Ping Failed - Host is Offline');
+            }
+        },
+        error: function(xhr) {
+            $('#pingStatus').hide();
+            $('#pingOutput').show();
+            
+            const response = xhr.responseJSON;
+            $('#pingModalHeader').removeClass('bg-primary bg-success bg-warning').addClass('bg-danger text-white');
+            $('#pingAlert').removeClass().addClass('alert alert-danger');
+            $('#pingResultTitle').html('<i class="fas fa-exclamation-triangle me-2"></i>Error');
+            $('#pingDeviceName').text('-');
+            $('#pingOutputText').text(response.output || 'An error occurred while pinging the IP address');
         }
     });
 }
@@ -497,7 +523,6 @@ function deleteIP(ipId) {
 function resetForm() {
     $('#ipForm')[0].reset();
     $('#ipId').val('');
-    $('#addIPModalLabel').html('<i class="fas fa-plus me-2"></i>Add IP Address');
 }
 
 function showAlert(type, message) {

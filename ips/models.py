@@ -2,6 +2,7 @@
 from django.db import models
 from django.core.validators import validate_ipv4_address
 from django.core.exceptions import ValidationError
+from django.contrib.auth.models import User
 
 class Branch(models.Model):
     name = models.CharField(max_length=255)
@@ -18,6 +19,21 @@ class Branch(models.Model):
     @property
     def ip_count(self):
         return self.ips.count()
+
+
+class UserProfile(models.Model):
+    user = models.OneToOneField(User, on_delete=models.CASCADE, related_name='profile')
+    branch = models.ForeignKey(Branch, on_delete=models.SET_NULL, null=True, blank=True, related_name='users')
+    is_admin = models.BooleanField(default=False)
+    created_at = models.DateTimeField(auto_now_add=True)
+
+    class Meta:
+        db_table = 'user_profiles'
+        verbose_name = 'User Profile'
+        verbose_name_plural = 'User Profiles'
+
+    def __str__(self):
+        return f"{self.user.username} - {'Admin' if self.is_admin else 'User'}"
 
 
 class DeviceType(models.Model):
@@ -67,7 +83,6 @@ class IP(models.Model):
 
     def clean(self):
         super().clean()
-        # Additional validation
         if self.ip_address:
             try:
                 validate_ipv4_address(self.ip_address)

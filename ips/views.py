@@ -1,4 +1,4 @@
-# ips/views.py - Bug-Fixed Version
+# ips/views.py
 from django.shortcuts import render, redirect, get_object_or_404
 from django.contrib.auth.decorators import login_required
 from django.contrib.auth import login, logout, authenticate
@@ -12,11 +12,29 @@ from django.core.validators import validate_ipv4_address
 from django.core.exceptions import ValidationError
 import json
 import logging
+import subprocess
+import platform
 
-from .models import Branch, DeviceType, Subnet, IP
+from .models import Branch, DeviceType, Subnet, IP, UserProfile
 from .forms import IPForm, BulkIPForm
 
 logger = logging.getLogger(__name__)
+
+
+def is_admin(user):
+    """Check if user has admin privileges"""
+    if user.is_superuser:
+        return True
+    if hasattr(user, 'profile'):
+        return user.profile.is_admin
+    return False
+
+
+def get_user_branch(user):
+    """Get user's assigned branch"""
+    if hasattr(user, 'profile'):
+        return user.profile.branch
+    return None
 
 
 def login_view(request):
@@ -37,7 +55,6 @@ def login_view(request):
         if user is not None:
             login(request, user)
             next_url = request.GET.get('next', 'index')
-            # Prevent open redirect vulnerability
             if not next_url.startswith('/'):
                 next_url = 'index'
             return redirect(next_url)
@@ -57,13 +74,18 @@ def logout_view(request):
 
 @login_required
 def index(request):
-    """Main dashboard view with improved error handling"""
+    """Main dashboard view with permission handling"""
     try:
-        # Get branches and let the property handle ip_count
+        user_is_admin = is_admin(request.user)
+        user_branch = get_user_branch(request.user)
+        
+        # Get all branches for display
         branches = Branch.objects.all().order_by('name')
         
         context = {
-            'branches': branches
+            'branches': branches,
+            'is_admin': user_is_admin,
+            'user_branch': user_branch,
         }
         
         return render(request, 'ips/index.html', context)
@@ -72,32 +94,29 @@ def index(request):
         logger.error(f"Error loading dashboard: {str(e)}", exc_info=True)
         messages.error(request, f'Error loading dashboard: {str(e)}')
         
-        # Return empty context to prevent template errors
         context = {
-            'branches': []
+            'branches': [],
+            'is_admin': False,
+            'user_branch': None,
         }
         return render(request, 'ips/index.html', context)
 
+
 @login_required
 def get_networks(request):
-    """API endpoint to get networks for a branch with proper error handling"""
+    """API endpoint to get networks for a branch"""
     branch_id = request.GET.get('branch_id')
     
     if not branch_id:
         return JsonResponse({'error': 'Branch ID is required'}, status=400)
     
     try:
-        # Verify branch exists
         branch = get_object_or_404(Branch, id=branch_id)
-        
-        # Get all IPs for the branch
         ips = IP.objects.filter(branch_id=branch_id).select_related('subnet')
         
-        # Group by network
         network_dict = {}
         for ip in ips:
             try:
-                # Extract network address (first 3 octets)
                 network = '.'.join(ip.ip_address.split('.')[:-1]) + '.0'
                 key = f"{network}_{ip.subnet.id}"
                 
@@ -114,7 +133,6 @@ def get_networks(request):
                 logger.warning(f"Error processing IP {ip.ip_address}: {str(e)}")
                 continue
         
-        # Sort networks by IP address
         networks_list = sorted(
             network_dict.values(), 
             key=lambda x: IP.ip_to_int(x['network'])
@@ -128,7 +146,7 @@ def get_networks(request):
 
 @login_required
 def get_ips_datatable(request):
-    """DataTables server-side processing endpoint with improved error handling"""
+    """DataTables server-side processing endpoint"""
     try:
         draw = int(request.POST.get('draw', 1))
         start = int(request.POST.get('start', 0))
@@ -148,24 +166,19 @@ def get_ips_datatable(request):
                 'data': []
             })
 
-        # Base queryset with proper joins
         queryset = IP.objects.filter(
             branch_id=branch_id
         ).select_related('device_type', 'subnet', 'branch')
 
-        # Apply network filter
         if network:
             network_prefix = '.'.join(network.split('.')[:-1])
             queryset = queryset.filter(ip_address__startswith=network_prefix)
 
-        # Apply subnet filter
         if subnet_id and subnet_id.isdigit():
             queryset = queryset.filter(subnet_id=int(subnet_id))
 
-        # Total records before filtering
         total_records = queryset.count()
 
-        # Apply search
         if search_value:
             queryset = queryset.filter(
                 Q(ip_address__icontains=search_value) |
@@ -176,14 +189,16 @@ def get_ips_datatable(request):
 
         filtered_records = queryset.count()
 
-        # Apply ordering
         order_columns = [
             'ip_address', 'device_name', 'device_type__name', 
             'subnet__subnet_mask', 'description'
         ]
         order_by = order_columns[order_column] if order_column < len(order_columns) else 'ip_address'
         
-        # For IP address sorting, use custom method
+        # Check if user can edit
+        user_is_admin = is_admin(request.user)
+        user_branch = get_user_branch(request.user)
+        
         if order_column == 0:
             ips = list(queryset)
             ips.sort(
@@ -196,9 +211,11 @@ def get_ips_datatable(request):
                 order_by = f'-{order_by}'
             ips = queryset.order_by(order_by)[start:start + length]
 
-        # Format data
         data = []
         for ip in ips:
+            # Determine if user can edit this IP
+            can_edit = user_is_admin or (user_branch and user_branch.id == ip.branch.id)
+            
             data.append({
                 'id': ip.id,
                 'ip_address': ip.ip_address,
@@ -207,7 +224,9 @@ def get_ips_datatable(request):
                 'device_type_id': ip.device_type.id,
                 'subnet_mask': ip.subnet.subnet_mask,
                 'subnet_id': ip.subnet.id,
-                'description': ip.description or ''
+                'description': ip.description or '',
+                'branch_id': ip.branch.id,
+                'can_edit': can_edit
             })
 
         return JsonResponse({
@@ -229,68 +248,22 @@ def get_ips_datatable(request):
 
 @login_required
 @require_http_methods(["GET", "POST"])
-def add_ip(request):
-    """Add new IP address with validation"""
-    if request.method == 'POST':
-        form = IPForm(request.POST)
-        if form.is_valid():
-            try:
-                # Additional validation
-                ip_address = form.cleaned_data['ip_address']
-                validate_ipv4_address(ip_address)
-                
-                ip = form.save()
-                
-                if request.headers.get('X-Requested-With') == 'XMLHttpRequest':
-                    return JsonResponse({
-                        'success': True, 
-                        'message': 'IP address added successfully'
-                    })
-                messages.success(request, 'IP address added successfully')
-                return redirect('index')
-            except ValidationError as e:
-                error_msg = str(e.message) if hasattr(e, 'message') else str(e)
-                if request.headers.get('X-Requested-With') == 'XMLHttpRequest':
-                    return JsonResponse({
-                        'success': False, 
-                        'error': error_msg
-                    }, status=400)
-                messages.error(request, error_msg)
-            except IntegrityError:
-                error_msg = 'This IP address already exists'
-                if request.headers.get('X-Requested-With') == 'XMLHttpRequest':
-                    return JsonResponse({
-                        'success': False, 
-                        'error': error_msg
-                    }, status=400)
-                messages.error(request, error_msg)
-            except Exception as e:
-                logger.error(f"Error adding IP: {str(e)}")
-                error_msg = f'Error: {str(e)}'
-                if request.headers.get('X-Requested-With') == 'XMLHttpRequest':
-                    return JsonResponse({
-                        'success': False, 
-                        'error': error_msg
-                    }, status=400)
-                messages.error(request, error_msg)
-        else:
-            if request.headers.get('X-Requested-With') == 'XMLHttpRequest':
-                return JsonResponse({
-                    'success': False, 
-                    'errors': form.errors
-                }, status=400)
-            messages.error(request, 'Please correct the errors below')
-    else:
-        form = IPForm()
-    
-    return render(request, 'ips/ip_form.html', {'form': form})
-
-
-@login_required
-@require_http_methods(["GET", "POST"])
 def edit_ip(request, ip_id):
-    """Edit existing IP address"""
+    """Edit existing IP address with permission check"""
     ip = get_object_or_404(IP, id=ip_id)
+    
+    # Check permissions
+    user_is_admin = is_admin(request.user)
+    user_branch = get_user_branch(request.user)
+    
+    if not user_is_admin and (not user_branch or user_branch.id != ip.branch.id):
+        if request.headers.get('X-Requested-With') == 'XMLHttpRequest':
+            return JsonResponse({
+                'success': False, 
+                'error': 'You do not have permission to edit this IP address'
+            }, status=403)
+        messages.error(request, 'You do not have permission to edit this IP address')
+        return redirect('index')
     
     if request.method == 'POST':
         form = IPForm(request.POST, instance=ip)
@@ -338,39 +311,16 @@ def edit_ip(request, ip_id):
 
 
 @login_required
-@require_http_methods(["POST", "DELETE"])
-def delete_ip(request, ip_id):
-    """Delete IP address"""
-    ip = get_object_or_404(IP, id=ip_id)
-    
-    try:
-        ip.delete()
-        if request.headers.get('X-Requested-With') == 'XMLHttpRequest':
-            return JsonResponse({
-                'success': True, 
-                'message': 'IP address deleted successfully'
-            })
-        messages.success(request, 'IP address deleted successfully')
-    except Exception as e:
-        logger.error(f"Error deleting IP: {str(e)}")
-        if request.headers.get('X-Requested-With') == 'XMLHttpRequest':
-            return JsonResponse({
-                'success': False, 
-                'error': str(e)
-            }, status=400)
-        messages.error(request, f'Error: {str(e)}')
-    
-    return redirect('index')
-
-
-@login_required
 def bulk_insert(request):
-    """Bulk IP insert view with comprehensive error handling"""
+    """Bulk IP insert view - Admin only"""
+    if not is_admin(request.user):
+        messages.error(request, 'You do not have permission to perform bulk inserts')
+        return redirect('index')
+    
     if request.method == 'POST':
         try:
             data = json.loads(request.body)
             
-            # Validate required fields
             required_fields = [
                 'start_ip', 'end_ip', 'branch_id', 
                 'subnet_id', 'device_type_id'
@@ -391,7 +341,6 @@ def bulk_insert(request):
             description = data.get('description', 'Bulk inserted IP')
             skip_existing = data.get('skip_existing', True)
             
-            # Validate IP addresses
             try:
                 validate_ipv4_address(start_ip)
                 validate_ipv4_address(end_ip)
@@ -401,7 +350,6 @@ def bulk_insert(request):
                     'error': 'Invalid IP address format'
                 }, status=400)
             
-            # Convert IPs to integers
             try:
                 start_long = IP.ip_to_int(start_ip)
                 end_long = IP.ip_to_int(end_ip)
@@ -419,14 +367,12 @@ def bulk_insert(request):
             
             total_ips = end_long - start_long + 1
             
-            # Check maximum limit
             if total_ips > 5000000:
                 return JsonResponse({
                     'success': False,
                     'error': f'Range too large. Maximum 5,000,000 IPs. Requested: {total_ips:,}'
                 }, status=400)
             
-            # Get related objects
             try:
                 branch = Branch.objects.get(id=branch_id)
                 subnet = Subnet.objects.get(id=subnet_id)
@@ -441,10 +387,8 @@ def bulk_insert(request):
             skipped = 0
             errors = []
             
-            # Get existing IPs in the range (for skip_existing)
             existing_ips = set()
             if skip_existing:
-                # Check in batches to avoid memory issues
                 batch_size = 10000
                 current = start_long
                 while current <= end_long:
@@ -460,7 +404,6 @@ def bulk_insert(request):
                     existing_ips.update(existing)
                     current = batch_end
             
-            # Process in batches
             batch_size = 1000
             current_long = start_long
             
@@ -501,7 +444,6 @@ def bulk_insert(request):
                     
                     current_long += 1
                 
-                # Insert remaining
                 if batch:
                     try:
                         IP.objects.bulk_create(
@@ -536,7 +478,6 @@ def bulk_insert(request):
                 'error': str(e)
             }, status=500)
     
-    # GET request - show form
     branches = Branch.objects.all().order_by('name')
     device_types = DeviceType.objects.all().order_by('name')
     subnets = Subnet.objects.all().order_by('prefix')
@@ -546,6 +487,55 @@ def bulk_insert(request):
         'device_types': device_types,
         'subnets': subnets
     })
+
+
+@login_required
+def ping_ip(request, ip_id):
+    """Ping an IP address"""
+    ip = get_object_or_404(IP, id=ip_id)
+    
+    try:
+        # Determine the ping command based on OS
+        param = '-n' if platform.system().lower() == 'windows' else '-c'
+        
+        # Execute ping command (4 packets)
+        command = ['ping', param, '4', ip.ip_address]
+        result = subprocess.run(
+            command,
+            stdout=subprocess.PIPE,
+            stderr=subprocess.PIPE,
+            timeout=10,
+            text=True
+        )
+        
+        # Check if ping was successful
+        success = result.returncode == 0
+        
+        return JsonResponse({
+            'success': success,
+            'ip_address': ip.ip_address,
+            'device_name': ip.device_name,
+            'output': result.stdout if success else result.stderr,
+            'status': 'online' if success else 'offline'
+        })
+        
+    except subprocess.TimeoutExpired:
+        return JsonResponse({
+            'success': False,
+            'ip_address': ip.ip_address,
+            'device_name': ip.device_name,
+            'output': 'Ping request timed out',
+            'status': 'timeout'
+        })
+    except Exception as e:
+        logger.error(f"Ping error: {str(e)}")
+        return JsonResponse({
+            'success': False,
+            'ip_address': ip.ip_address,
+            'device_name': ip.device_name,
+            'output': str(e),
+            'status': 'error'
+        }, status=500)
 
 
 @login_required
@@ -580,13 +570,12 @@ def get_branches(request):
     try:
         branches = Branch.objects.all().order_by('name')
         
-        # Manually build the response with ip_count property
         branches_data = []
         for branch in branches:
             branches_data.append({
                 'id': branch.id,
                 'name': branch.name,
-                'ip_count': branch.ip_count  # This uses the property from the model
+                'ip_count': branch.ip_count
             })
         
         return JsonResponse(branches_data, safe=False)
