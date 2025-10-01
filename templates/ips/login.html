@@ -10,12 +10,44 @@
         display: flex;
         align-items: center;
         justify-content: center;
+        padding: 20px;
+    }
+    
+    .login-wrapper {
+        display: flex;
+        max-width: 1000px;
+        width: 100%;
+        gap: 2rem;
+        align-items: center;
+    }
+    
+    .login-info {
+        flex: 1;
+        color: white;
+        display: none;
+    }
+    
+    @media (min-width: 768px) {
+        .login-info {
+            display: block;
+        }
+    }
+    
+    .login-info h2 {
+        font-size: 2.5rem;
+        font-weight: 700;
+        margin-bottom: 1.5rem;
+    }
+    
+    .login-info p {
+        font-size: 1.1rem;
+        opacity: 0.9;
+        line-height: 1.6;
     }
     
     .login-container {
+        flex: 1;
         max-width: 450px;
-        width: 100%;
-        padding: 20px;
     }
     
     .login-card {
@@ -77,6 +109,10 @@
         box-shadow: 0 0 0 3px rgba(102, 126, 234, 0.1);
     }
     
+    .form-control.is-invalid {
+        border-color: #ef4444;
+    }
+    
     .input-group-text {
         background: #f8fafc;
         border: 2px solid #e2e8f0;
@@ -93,6 +129,14 @@
         border-left: none;
     }
     
+    .input-group.is-invalid .input-group-text {
+        border-color: #ef4444;
+    }
+    
+    .input-group.is-invalid .form-control {
+        border-color: #ef4444;
+    }
+    
     .btn-login {
         width: 100%;
         padding: 0.875rem;
@@ -104,7 +148,7 @@
         transition: transform 0.2s, box-shadow 0.2s;
     }
     
-    .btn-login:hover {
+    .btn-login:hover:not(:disabled) {
         transform: translateY(-2px);
         box-shadow: 0 8px 20px rgba(102, 126, 234, 0.4);
     }
@@ -125,89 +169,168 @@
         color: #64748b;
         font-size: 0.875rem;
     }
+    
+    .alert-login {
+        border-radius: 8px;
+        border: none;
+        padding: 1rem;
+        margin-bottom: 1.5rem;
+        animation: slideIn 0.3s ease-out;
+    }
+    
+    @keyframes slideIn {
+        from {
+            opacity: 0;
+            transform: translateY(-10px);
+        }
+        to {
+            opacity: 1;
+            transform: translateY(0);
+        }
+    }
+    
+    .feature-list {
+        list-style: none;
+        padding: 0;
+        margin-top: 2rem;
+    }
+    
+    .feature-list li {
+        padding: 0.75rem 0;
+        display: flex;
+        align-items: center;
+    }
+    
+    .feature-list li i {
+        margin-right: 1rem;
+        font-size: 1.2rem;
+    }
 </style>
 {% endblock %}
 
 {% block content %}
-<div class="login-container">
-    <div class="login-card">
-        <div class="login-header">
-            <div class="login-icon">
+<div class="login-wrapper">
+    <!-- Left side info (hidden on mobile) -->
+    <div class="login-info">
+        <h2>Welcome to IP Management System</h2>
+        <p>Efficiently manage and monitor your network IP addresses across multiple branches with our comprehensive management solution.</p>
+        
+        <ul class="feature-list">
+            <li>
                 <i class="fas fa-network-wired"></i>
-            </div>
-            <h1>IP Management</h1>
-            <p>Sign in to access the system</p>
-        </div>
-        
-        <div class="login-body">
-            <form method="post" action="{% url 'login' %}">
-                {% csrf_token %}
-                
-                <div class="mb-3">
-                    <label for="username" class="form-label">
-                        <i class="fas fa-user me-2"></i>Username
-                    </label>
-                    <div class="input-group">
-                        <span class="input-group-text">
-                            <i class="fas fa-user"></i>
-                        </span>
-                        <input type="text" 
-                               class="form-control" 
-                               id="username" 
-                               name="username" 
-                               placeholder="Enter your username"
-                               required 
-                               autofocus>
-                    </div>
-                </div>
-                
-                <div class="mb-3">
-                    <label for="password" class="form-label">
-                        <i class="fas fa-lock me-2"></i>Password
-                    </label>
-                    <div class="input-group">
-                        <span class="input-group-text">
-                            <i class="fas fa-lock"></i>
-                        </span>
-                        <input type="password" 
-                               class="form-control" 
-                               id="password" 
-                               name="password" 
-                               placeholder="Enter your password"
-                               required>
-                    </div>
-                </div>
-                
-                <div class="mb-4">
-                    <div class="form-check">
-                        <input class="form-check-input" 
-                               type="checkbox" 
-                               id="remember" 
-                               name="remember">
-                        <label class="form-check-label" for="remember">
-                            Remember me
-                        </label>
-                    </div>
-                </div>
-                
-                <button type="submit" class="btn btn-primary btn-login">
-                    <i class="fas fa-sign-in-alt me-2"></i>Sign In
-                </button>
-            </form>
-        </div>
-        
-        <div class="login-footer">
-            <p class="mb-0">IP Management System &copy; 2025</p>
-        </div>
+                <span>Manage IP addresses across multiple branches</span>
+            </li>
+            <li>
+                <i class="fas fa-upload"></i>
+                <span>Bulk IP insertion capabilities</span>
+            </li>
+            <li>
+                <i class="fas fa-shield-alt"></i>
+                <span>Secure role-based access control</span>
+            </li>
+        </ul>
     </div>
     
-    <div class="text-center mt-4">
-        <p class="text-white mb-0">
-            <small>
-                <i class="fas fa-info-circle me-1"></i>
-                Use your admin credentials to access the system
-            </small>
-        </p>
+    <!-- Login form -->
+    <div class="login-container">
+        <div class="login-card">
+            <div class="login-header">
+                <div class="login-icon">
+                    <i class="fas fa-network-wired"></i>
+                </div>
+                <h1>IP Management</h1>
+                <p>Sign in to access the system</p>
+            </div>
+            
+            <div class="login-body">
+                <!-- Error Messages -->
+                {% if messages %}
+                    {% for message in messages %}
+                    <div class="alert alert-{{ message.tags }} alert-login alert-dismissible fade show" role="alert">
+                        {% if message.tags == 'error' or message.tags == 'danger' %}
+                            <i class="fas fa-exclamation-circle me-2"></i>
+                        {% elif message.tags == 'success' %}
+                            <i class="fas fa-check-circle me-2"></i>
+                        {% elif message.tags == 'warning' %}
+                            <i class="fas fa-exclamation-triangle me-2"></i>
+                        {% else %}
+                            <i class="fas fa-info-circle me-2"></i>
+                        {% endif %}
+                        {{ message }}
+                        <button type="button" class="btn-close" data-bs-dismiss="alert"></button>
+                    </div>
+                    {% endfor %}
+                {% endif %}
+                
+                <form method="post" action="{% url 'login' %}" id="loginForm">
+                    {% csrf_token %}
+                    
+                    <div class="mb-3">
+                        <label for="username" class="form-label">
+                            <i class="fas fa-user me-2"></i>Username
+                        </label>
+                        <div class="input-group">
+                            <span class="input-group-text">
+                                <i class="fas fa-user"></i>
+                            </span>
+                            <input type="text" 
+                                   class="form-control" 
+                                   id="username" 
+                                   name="username" 
+                                   placeholder="Enter your username"
+                                   required 
+                                   autofocus>
+                        </div>
+                    </div>
+                    
+                    <div class="mb-3">
+                        <label for="password" class="form-label">
+                            <i class="fas fa-lock me-2"></i>Password
+                        </label>
+                        <div class="input-group">
+                            <span class="input-group-text">
+                                <i class="fas fa-lock"></i>
+                            </span>
+                            <input type="password" 
+                                   class="form-control" 
+                                   id="password" 
+                                   name="password" 
+                                   placeholder="Enter your password"
+                                   required>
+                        </div>
+                    </div>
+                    
+                    <div class="mb-4">
+                        <div class="form-check">
+                            <input class="form-check-input" 
+                                   type="checkbox" 
+                                   id="remember" 
+                                   name="remember">
+                            <label class="form-check-label" for="remember">
+                                Remember me
+                            </label>
+                        </div>
+                    </div>
+                    
+                    <button type="submit" class="btn btn-primary btn-login">
+                        <i class="fas fa-sign-in-alt me-2"></i>Sign In
+                    </button>
+                </form>
+            </div>
+            
+            <div class="login-footer">
+                <p class="mb-0">IP Management System &copy; 2025</p>
+            </div>
+        </div>
+        
+        <div class="text-center mt-3">
+            <p class="text-white mb-0">
+                <small>
+                    <i class="fas fa-info-circle me-1"></i>
+                    Use your admin credentials to access the system
+                </small>
+            </p>
+        </div>
     </div>
 </div>
 {% endblock %}
@@ -215,9 +338,15 @@
 {% block extra_js %}
 <script>
     // Add animation on form submission
-    $('form').on('submit', function() {
+    $('#loginForm').on('submit', function() {
         $('.btn-login').html('<i class="fas fa-spinner fa-spin me-2"></i>Signing in...');
         $('.btn-login').prop('disabled', true);
+    });
+    
+    // Remove invalid class on input
+    $('#username, #password').on('input', function() {
+        $(this).removeClass('is-invalid');
+        $(this).closest('.input-group').removeClass('is-invalid');
     });
 </script>
 {% endblock %}
