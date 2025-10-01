@@ -1,0 +1,384 @@
+{% extends 'base.html' %}
+
+{% block title %}Bulk Insert - IP Management System{% endblock %}
+
+{% block content %}
+<div class="container-fluid">
+    <div class="row">
+        <div class="col-12">
+            <div class="page-header">
+                <h1 class="page-title">
+                    <i class="fas fa-upload me-2"></i>Bulk IP Insert
+                </h1>
+                <p class="text-muted">Insert multiple IP addresses in a range</p>
+            </div>
+        </div>
+    </div>
+
+    <div class="row">
+        <div class="col-lg-8">
+            <div class="card">
+                <div class="card-body">
+                    <form id="bulkInsertForm">
+                        {% csrf_token %}
+                        
+                        <div class="row mb-3">
+                            <div class="col-md-6">
+                                <label for="startIP" class="form-label">Start IP Address *</label>
+                                <input type="text" class="form-control" id="startIP" name="start_ip" 
+                                       placeholder="172.16.0.0" required>
+                                <small class="text-muted">Beginning of IP range</small>
+                            </div>
+                            <div class="col-md-6">
+                                <label for="endIP" class="form-label">End IP Address *</label>
+                                <input type="text" class="form-control" id="endIP" name="end_ip" 
+                                       placeholder="172.31.255.255" required>
+                                <small class="text-muted">End of IP range</small>
+                            </div>
+                        </div>
+                        
+                        <div class="row mb-3">
+                            <div class="col-md-6">
+                                <label for="branchBulk" class="form-label">Branch *</label>
+                                <select class="form-select" id="branchBulk" name="branch_id" required>
+                                    <option value="">-- Select Branch --</option>
+                                    {% for branch in branches %}
+                                    <option value="{{ branch.id }}">{{ branch.name }}</option>
+                                    {% endfor %}
+                                </select>
+                            </div>
+                            <div class="col-md-6">
+                                <label for="subnetBulk" class="form-label">Subnet Mask *</label>
+                                <select class="form-select" id="subnetBulk" name="subnet_id" required>
+                                    <option value="">-- Select Subnet --</option>
+                                    {% for subnet in subnets %}
+                                    <option value="{{ subnet.id }}">
+                                        /{{ subnet.prefix }} ({{ subnet.subnet_mask }})
+                                    </option>
+                                    {% endfor %}
+                                </select>
+                            </div>
+                        </div>
+                        
+                        <div class="row mb-3">
+                            <div class="col-md-6">
+                                <label for="deviceTypeBulk" class="form-label">Device Type *</label>
+                                <select class="form-select" id="deviceTypeBulk" name="device_type_id" required>
+                                    <option value="">-- Select Device Type --</option>
+                                    {% for device_type in device_types %}
+                                    <option value="{{ device_type.id }}">{{ device_type.name }}</option>
+                                    {% endfor %}
+                                </select>
+                            </div>
+                            <div class="col-md-6">
+                                <label for="devicePrefix" class="form-label">Device Name Prefix *</label>
+                                <input type="text" class="form-control" id="devicePrefix" 
+                                       name="device_name_prefix" value="Device" required>
+                                <small class="text-muted">e.g., "Device" → "Device-192-168-1-1"</small>
+                            </div>
+                        </div>
+                        
+                        <div class="mb-3">
+                            <label for="descriptionBulk" class="form-label">Description</label>
+                            <textarea class="form-control" id="descriptionBulk" name="description" 
+                                      rows="2" placeholder="Optional description for all IPs">Bulk inserted IP range</textarea>
+                        </div>
+                        
+                        <div class="mb-4">
+                            <div class="form-check">
+                                <input class="form-check-input" type="checkbox" id="skipExisting" 
+                                       name="skip_existing" checked>
+                                <label class="form-check-label" for="skipExisting">
+                                    <strong>Skip existing IP addresses</strong>
+                                    <small class="d-block text-muted">Recommended to avoid duplicate errors</small>
+                                </label>
+                            </div>
+                        </div>
+                        
+                        <div class="d-grid gap-2">
+                            <button type="submit" class="btn btn-primary btn-lg" id="bulkInsertBtn">
+                                <i class="fas fa-upload me-2"></i>Start Bulk Insert
+                            </button>
+                            <a href="{% url 'index' %}" class="btn btn-outline-secondary">
+                                <i class="fas fa-arrow-left me-2"></i>Back to Dashboard
+                            </a>
+                        </div>
+                    </form>
+                </div>
+            </div>
+        </div>
+        
+        <div class="col-lg-4">
+            <div class="card mb-3">
+                <div class="card-body">
+                    <h5 class="card-title">
+                        <i class="fas fa-info-circle me-2"></i>Instructions
+                    </h5>
+                    <ul class="mb-0">
+                        <li>Enter the start and end IP addresses for the range</li>
+                        <li>Select the branch, subnet, and device type</li>
+                        <li>Choose a prefix for device names</li>
+                        <li>Maximum 5,000,000 IPs per operation</li>
+                        <li>Process may take time for large ranges</li>
+                    </ul>
+                </div>
+            </div>
+            
+            <div class="card">
+                <div class="card-body">
+                    <h5 class="card-title">
+                        <i class="fas fa-calculator me-2"></i>IP Range Calculator
+                    </h5>
+                    <div id="rangeInfo" class="alert alert-info mb-0">
+                        <p class="mb-0">Enter IP range to calculate total addresses</p>
+                    </div>
+                </div>
+            </div>
+            
+            <!-- Progress Card -->
+            <div class="card mt-3" id="progressCard" style="display: none;">
+                <div class="card-body">
+                    <h5 class="card-title">
+                        <i class="fas fa-tasks me-2"></i>Progress
+                    </h5>
+                    <div class="progress mb-3" style="height: 25px;">
+                        <div class="progress-bar progress-bar-striped progress-bar-animated" 
+                             role="progressbar" id="progressBar" style="width: 0%">
+                            0%
+                        </div>
+                    </div>
+                    <div id="progressText" class="text-center">
+                        <small class="text-muted">Preparing...</small>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+    
+    <!-- Results Modal -->
+    <div class="modal fade" id="resultsModal" tabindex="-1" aria-labelledby="resultsModalLabel" 
+         aria-hidden="true" data-bs-backdrop="static" data-bs-keyboard="false">
+        <div class="modal-dialog modal-lg">
+            <div class="modal-content">
+                <div class="modal-header bg-success text-white">
+                    <h5 class="modal-title" id="resultsModalLabel">
+                        <i class="fas fa-check-circle me-2"></i>Bulk Insert Complete
+                    </h5>
+                </div>
+                <div class="modal-body">
+                    <div class="row text-center mb-4">
+                        <div class="col-md-4">
+                            <div class="stat-card">
+                                <div class="stat-icon bg-success bg-opacity-10 text-success mx-auto mb-2">
+                                    <i class="fas fa-check"></i>
+                                </div>
+                                <h3 class="mb-0" id="insertedCount">0</h3>
+                                <small class="text-muted">Inserted</small>
+                            </div>
+                        </div>
+                        <div class="col-md-4">
+                            <div class="stat-card">
+                                <div class="stat-icon bg-warning bg-opacity-10 text-warning mx-auto mb-2">
+                                    <i class="fas fa-forward"></i>
+                                </div>
+                                <h3 class="mb-0" id="skippedCount">0</h3>
+                                <small class="text-muted">Skipped</small>
+                            </div>
+                        </div>
+                        <div class="col-md-4">
+                            <div class="stat-card">
+                                <div class="stat-icon bg-info bg-opacity-10 text-info mx-auto mb-2">
+                                    <i class="fas fa-list"></i>
+                                </div>
+                                <h3 class="mb-0" id="totalCount">0</h3>
+                                <small class="text-muted">Total Processed</small>
+                            </div>
+                        </div>
+                    </div>
+                    
+                    <div id="resultDetails"></div>
+                    
+                    <div id="errorsList" style="display: none;">
+                        <div class="alert alert-danger">
+                            <h6><i class="fas fa-exclamation-triangle me-2"></i>Errors:</h6>
+                            <ul id="errorsContent" class="mb-0"></ul>
+                        </div>
+                    </div>
+                </div>
+                <div class="modal-footer">
+                    <button type="button" class="btn btn-primary" onclick="location.reload()">
+                        <i class="fas fa-plus me-2"></i>Insert More IPs
+                    </button>
+                    <a href="{% url 'index' %}" class="btn btn-success">
+                        <i class="fas fa-home me-2"></i>Go to Dashboard
+                    </a>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}
+
+{% block extra_js %}
+<script>
+$(document).ready(function() {
+    // Calculate IP range on input
+    $('#startIP, #endIP').on('input', function() {
+        calculateRange();
+    });
+    
+    // Form submission
+    $('#bulkInsertForm').on('submit', function(e) {
+        e.preventDefault();
+        startBulkInsert();
+    });
+});
+
+function calculateRange() {
+    const startIP = $('#startIP').val();
+    const endIP = $('#endIP').val();
+    
+    if (!startIP || !endIP) {
+        $('#rangeInfo').html('<p class="mb-0">Enter IP range to calculate total addresses</p>');
+        return;
+    }
+    
+    try {
+        const start = ipToInt(startIP);
+        const end = ipToInt(endIP);
+        
+        if (start > end) {
+            $('#rangeInfo').html('<p class="mb-0 text-danger"><i class="fas fa-exclamation-triangle me-2"></i>Start IP must be less than End IP</p>');
+            return;
+        }
+        
+        const total = end - start + 1;
+        const formatted = total.toLocaleString();
+        
+        let alertClass = 'alert-info';
+        let icon = 'fa-info-circle';
+        
+        if (total > 5000000) {
+            alertClass = 'alert-danger';
+            icon = 'fa-exclamation-triangle';
+        } else if (total > 1000000) {
+            alertClass = 'alert-warning';
+            icon = 'fa-exclamation-circle';
+        } else if (total > 100000) {
+            alertClass = 'alert-warning';
+            icon = 'fa-info-circle';
+        } else {
+            alertClass = 'alert-success';
+            icon = 'fa-check-circle';
+        }
+        
+        $('#rangeInfo').removeClass().addClass(`alert ${alertClass} mb-0`);
+        $('#rangeInfo').html(`
+            <p class="mb-2"><i class="fas ${icon} me-2"></i><strong>Total IPs: ${formatted}</strong></p>
+            <small>From: ${startIP}</small><br>
+            <small>To: ${endIP}</small>
+        `);
+        
+        if (total > 5000000) {
+            $('#rangeInfo').append('<hr><small class="text-danger"><strong>⚠️ Range exceeds maximum limit of 5,000,000 IPs</strong></small>');
+        } else if (total > 100000) {
+            $('#rangeInfo').append('<hr><small>⏱️ Large range may take several minutes to process</small>');
+        }
+    } catch (e) {
+        $('#rangeInfo').html('<p class="mb-0 text-danger"><i class="fas fa-exclamation-triangle me-2"></i>Invalid IP address format</p>');
+    }
+}
+
+function ipToInt(ip) {
+    const parts = ip.split('.');
+    if (parts.length !== 4) throw new Error('Invalid IP');
+    return (parseInt(parts[0]) << 24) + (parseInt(parts[1]) << 16) + 
+           (parseInt(parts[2]) << 8) + parseInt(parts[3]);
+}
+
+function startBulkInsert() {
+    const formData = {
+        start_ip: $('#startIP').val(),
+        end_ip: $('#endIP').val(),
+        branch_id: $('#branchBulk').val(),
+        subnet_id: $('#subnetBulk').val(),
+        device_type_id: $('#deviceTypeBulk').val(),
+        device_name_prefix: $('#devicePrefix').val(),
+        description: $('#descriptionBulk').val(),
+        skip_existing: $('#skipExisting').is(':checked')
+    };
+    
+    // Validate
+    if (!formData.start_ip || !formData.end_ip || !formData.branch_id || 
+        !formData.subnet_id || !formData.device_type_id) {
+        alert('Please fill in all required fields');
+        return;
+    }
+    
+    // Disable form
+    $('#bulkInsertBtn').prop('disabled', true).html('<i class="fas fa-spinner fa-spin me-2"></i>Processing...');
+    $('#bulkInsertForm input, #bulkInsertForm select, #bulkInsertForm textarea').prop('disabled', true);
+    
+    // Show progress
+    $('#progressCard').slideDown();
+    $('#progressBar').css('width', '10%').text('10%');
+    $('#progressText').html('<small class="text-muted">Starting bulk insert...</small>');
+    
+    // Send request
+    $.ajax({
+        url: '/bulk-insert/',
+        type: 'POST',
+        contentType: 'application/json',
+        data: JSON.stringify(formData),
+        success: function(response) {
+            // Update progress
+            $('#progressBar').css('width', '100%').text('100%').removeClass('progress-bar-animated');
+            $('#progressText').html('<small class="text-success"><i class="fas fa-check me-2"></i>Complete!</small>');
+            
+            // Show results
+            setTimeout(function() {
+                showResults(response);
+            }, 500);
+        },
+        error: function(xhr) {
+            const response = xhr.responseJSON;
+            $('#progressBar').removeClass('progress-bar-animated').addClass('bg-danger');
+            $('#progressText').html('<small class="text-danger"><i class="fas fa-times me-2"></i>Error occurred</small>');
+            
+            alert('Error: ' + (response.error || 'Unknown error occurred'));
+            
+            // Re-enable form
+            $('#bulkInsertBtn').prop('disabled', false).html('<i class="fas fa-upload me-2"></i>Start Bulk Insert');
+            $('#bulkInsertForm input, #bulkInsertForm select, #bulkInsertForm textarea').prop('disabled', false);
+        }
+    });
+}
+
+function showResults(response) {
+    $('#insertedCount').text(response.inserted.toLocaleString());
+    $('#skippedCount').text(response.skipped.toLocaleString());
+    $('#totalCount').text(response.total_processed.toLocaleString());
+    
+    let detailsHtml = `
+        <div class="alert alert-info">
+            <h6><i class="fas fa-info-circle me-2"></i>Details:</h6>
+            <p class="mb-1"><strong>IP Range:</strong> ${response.start_ip} - ${response.end_ip}</p>
+            <p class="mb-0">${response.message}</p>
+        </div>
+    `;
+    
+    $('#resultDetails').html(detailsHtml);
+    
+    if (response.errors && response.errors.length > 0) {
+        let errorsHtml = '';
+        response.errors.forEach(function(error) {
+            errorsHtml += `<li>${error}</li>`;
+        });
+        $('#errorsContent').html(errorsHtml);
+        $('#errorsList').show();
+    }
+    
+    $('#resultsModal').modal('show');
+}
+</script>
+{% endblock %}
