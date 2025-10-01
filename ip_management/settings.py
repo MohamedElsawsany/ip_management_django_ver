@@ -52,8 +52,12 @@ WSGI_APPLICATION = 'ip_management.wsgi.application'
 
 DATABASES = {
     'default': {
-        'ENGINE': 'django.db.backends.sqlite3',
-        'NAME': BASE_DIR / "db.sqlite3",  # this will create db.sqlite3 in your project root
+        'ENGINE': 'django.db.backends.postgresql',
+        'NAME': 'ip_management',   # your database name
+        'USER': 'postgres',           # your db user
+        'PASSWORD': 'Admin@1234',   # your db password
+        'HOST': 'localhost',          # or IP address of your DB server
+        'PORT': '5432',               # default PostgreSQL port
     }
 }
 

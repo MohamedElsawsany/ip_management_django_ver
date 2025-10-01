@@ -6,8 +6,8 @@
 <div class="container-fluid">
     <div class="row">
         <div class="col-12">
-            <div class="page-header d-flex justify-content-between align-items-center">
-                <div>
+            <div class="page-header d-flex flex-column flex-md-row justify-content-between align-items-start align-items-md-center">
+                <div class="mb-3 mb-md-0">
                     <h1 class="page-title">
                         <i class="fas fa-network-wired me-2"></i>IP Management Dashboard
                     </h1>
@@ -38,7 +38,7 @@
                         <i class="fas fa-building me-2"></i>Select Branch
                     </h5>
                     <div class="row g-3">
-                        <div class="col-md-6">
+                        <div class="col-12 col-md-6">
                             <label for="branchSelect" class="form-label">Branch</label>
                             <select id="branchSelect" class="form-select">
                                 <option value="">-- Select a Branch --</option>
@@ -53,7 +53,7 @@
                                 {% endif %}
                             </select>
                         </div>
-                        <div class="col-md-6">
+                        <div class="col-12 col-md-6">
                             <label for="networkSelect" class="form-label">Network (Optional)</label>
                             <select id="networkSelect" class="form-select" disabled>
                                 <option value="">-- All Networks --</option>
@@ -81,7 +81,7 @@
                                     <th>Device Name</th>
                                     <th>Device Type</th>
                                     <th>Subnet Mask</th>
-                                    <th>Description</th>
+                                    <th class="d-none d-lg-table-cell">Description</th>
                                     <th>Actions</th>
                                 </tr>
                             </thead>
@@ -103,7 +103,7 @@
 
 <!-- Edit IP Modal -->
 <div class="modal fade" id="editIPModal" tabindex="-1" aria-labelledby="editIPModalLabel" aria-hidden="true">
-    <div class="modal-dialog">
+    <div class="modal-dialog modal-dialog-scrollable">
         <div class="modal-content">
             <div class="modal-header">
                 <h5 class="modal-title" id="editIPModalLabel">
@@ -175,7 +175,7 @@
 
 <!-- Ping Result Modal -->
 <div class="modal fade" id="pingModal" tabindex="-1" aria-labelledby="pingModalLabel" aria-hidden="true">
-    <div class="modal-dialog modal-lg">
+    <div class="modal-dialog modal-lg modal-dialog-scrollable">
         <div class="modal-content">
             <div class="modal-header" id="pingModalHeader">
                 <h5 class="modal-title" id="pingModalLabel">
@@ -340,6 +340,7 @@ function loadIPTable(branchId, network, subnetId) {
     ipTable = $('#ipTable').DataTable({
         processing: true,
         serverSide: true,
+        responsive: true,
         ajax: {
             url: '/api/ips/datatable/',
             type: 'POST',
@@ -360,6 +361,7 @@ function loadIPTable(branchId, network, subnetId) {
             { data: 'subnet_mask' },
             { 
                 data: 'description',
+                className: 'd-none d-lg-table-cell',
                 render: function(data, type, row) {
                     return data || '<em class="text-muted">No description</em>';
                 }
@@ -368,13 +370,25 @@ function loadIPTable(branchId, network, subnetId) {
                 data: null,
                 orderable: false,
                 render: function(data, type, row) {
-                    let buttons = '<button class="btn btn-sm btn-info ping-btn me-1" data-id="' + row.id + '" data-ip="' + row.ip_address + '" title="Ping"><i class="fas fa-satellite-dish"></i></button>';
+                    // Mobile version (stacked buttons with text)
+                    let mobileButtons = '<div class="d-md-none d-flex flex-column gap-1">';
+                    mobileButtons += '<button class="btn btn-sm btn-info ping-btn" data-id="' + row.id + '" data-ip="' + row.ip_address + '"><i class="fas fa-satellite-dish me-1"></i>Ping</button>';
                     
                     if (row.can_edit) {
-                        buttons += ' <button class="btn btn-sm btn-primary edit-btn" data-id="' + row.id + '" title="Edit"><i class="fas fa-edit"></i></button>';
+                        mobileButtons += '<button class="btn btn-sm btn-primary edit-btn" data-id="' + row.id + '"><i class="fas fa-edit me-1"></i>Edit</button>';
                     }
+                    mobileButtons += '</div>';
                     
-                    return buttons;
+                    // Desktop version (icon-only buttons)
+                    let desktopButtons = '<div class="d-none d-md-inline-block">';
+                    desktopButtons += '<button class="btn btn-sm btn-info ping-btn me-1" data-id="' + row.id + '" data-ip="' + row.ip_address + '" title="Ping"><i class="fas fa-satellite-dish"></i></button>';
+                    
+                    if (row.can_edit) {
+                        desktopButtons += '<button class="btn btn-sm btn-primary edit-btn" data-id="' + row.id + '" title="Edit"><i class="fas fa-edit"></i></button>';
+                    }
+                    desktopButtons += '</div>';
+                    
+                    return mobileButtons + desktopButtons;
                 }
             }
         ],
@@ -384,6 +398,10 @@ function loadIPTable(branchId, network, subnetId) {
             emptyTable: "No IP addresses found for this branch",
             zeroRecords: "No matching IP addresses found",
             processing: "Loading IP addresses..."
+        },
+        drawCallback: function() {
+            // Re-initialize tooltips if needed
+            $('[title]').tooltip();
         }
     });
 }
