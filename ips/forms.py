@@ -60,6 +60,36 @@ class IPForm(forms.ModelForm):
         return ip_address
 
 
+class BranchForm(forms.ModelForm):
+    class Meta:
+        model = Branch
+        fields = ['name']
+        widgets = {
+            'name': forms.TextInput(attrs={
+                'class': 'form-control',
+                'placeholder': 'Enter branch name',
+                'required': True
+            }),
+        }
+        labels = {
+            'name': 'Branch Name *',
+        }
+
+    def clean_name(self):
+        name = self.cleaned_data.get('name')
+        instance_id = self.instance.id if self.instance else None
+        
+        # Check if branch name already exists (excluding current instance when editing)
+        existing = Branch.objects.filter(name__iexact=name)
+        if instance_id:
+            existing = existing.exclude(id=instance_id)
+        
+        if existing.exists():
+            raise forms.ValidationError('A branch with this name already exists.')
+        
+        return name
+
+
 class BulkIPForm(forms.Form):
     start_ip = forms.CharField(
         max_length=15,

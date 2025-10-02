@@ -16,7 +16,7 @@ import subprocess
 import platform
 
 from .models import Branch, DeviceType, Subnet, IP, UserProfile
-from .forms import IPForm, BulkIPForm
+from .forms import IPForm, BulkIPForm, BranchForm
 
 logger = logging.getLogger(__name__)
 
@@ -100,6 +100,181 @@ def index(request):
             'user_branch': None,
         }
         return render(request, 'ips/index.html', context)
+
+
+# ==================== BRANCH CRUD OPERATIONS ====================
+
+@login_required
+def branches_list(request):
+    """List all branches - Admin only"""
+    if not is_admin(request.user):
+        messages.error(request, 'You do not have permission to manage branches')
+        return redirect('index')
+    
+    branches = Branch.objects.all().order_by('name')
+    
+    context = {
+        'branches': branches,
+        'is_admin': True,
+    }
+    
+    return render(request, 'ips/branches_list.html', context)
+
+
+@login_required
+@require_http_methods(["GET", "POST"])
+def create_branch(request):
+    """Create new branch - Admin only"""
+    if not is_admin(request.user):
+        if request.headers.get('X-Requested-With') == 'XMLHttpRequest':
+            return JsonResponse({
+                'success': False,
+                'error': 'You do not have permission to create branches'
+            }, status=403)
+        messages.error(request, 'You do not have permission to create branches')
+        return redirect('index')
+    
+    if request.method == 'POST':
+        form = BranchForm(request.POST)
+        if form.is_valid():
+            try:
+                branch = form.save()
+                if request.headers.get('X-Requested-With') == 'XMLHttpRequest':
+                    return JsonResponse({
+                        'success': True,
+                        'message': 'Branch created successfully',
+                        'branch': {
+                            'id': branch.id,
+                            'name': branch.name,
+                            'ip_count': 0
+                        }
+                    })
+                messages.success(request, 'Branch created successfully')
+                return redirect('branches_list')
+            except Exception as e:
+                logger.error(f"Error creating branch: {str(e)}")
+                if request.headers.get('X-Requested-With') == 'XMLHttpRequest':
+                    return JsonResponse({
+                        'success': False,
+                        'error': str(e)
+                    }, status=400)
+                messages.error(request, f'Error: {str(e)}')
+        else:
+            if request.headers.get('X-Requested-With') == 'XMLHttpRequest':
+                return JsonResponse({
+                    'success': False,
+                    'errors': form.errors
+                }, status=400)
+    else:
+        form = BranchForm()
+    
+    if request.headers.get('X-Requested-With') == 'XMLHttpRequest':
+        return JsonResponse({'error': 'Method not allowed'}, status=405)
+    
+    return render(request, 'ips/branch_form.html', {'form': form, 'action': 'Create'})
+
+
+@login_required
+@require_http_methods(["GET", "POST"])
+def edit_branch(request, branch_id):
+    """Edit existing branch - Admin only"""
+    if not is_admin(request.user):
+        if request.headers.get('X-Requested-With') == 'XMLHttpRequest':
+            return JsonResponse({
+                'success': False,
+                'error': 'You do not have permission to edit branches'
+            }, status=403)
+        messages.error(request, 'You do not have permission to edit branches')
+        return redirect('index')
+    
+    branch = get_object_or_404(Branch, id=branch_id)
+    
+    if request.method == 'POST':
+        form = BranchForm(request.POST, instance=branch)
+        if form.is_valid():
+            try:
+                branch = form.save()
+                if request.headers.get('X-Requested-With') == 'XMLHttpRequest':
+                    return JsonResponse({
+                        'success': True,
+                        'message': 'Branch updated successfully',
+                        'branch': {
+                            'id': branch.id,
+                            'name': branch.name,
+                            'ip_count': branch.ip_count
+                        }
+                    })
+                messages.success(request, 'Branch updated successfully')
+                return redirect('branches_list')
+            except Exception as e:
+                logger.error(f"Error updating branch: {str(e)}")
+                if request.headers.get('X-Requested-With') == 'XMLHttpRequest':
+                    return JsonResponse({
+                        'success': False,
+                        'error': str(e)
+                    }, status=400)
+                messages.error(request, f'Error: {str(e)}')
+        else:
+            if request.headers.get('X-Requested-With') == 'XMLHttpRequest':
+                return JsonResponse({
+                    'success': False,
+                    'errors': form.errors
+                }, status=400)
+    else:
+        form = BranchForm(instance=branch)
+    
+    if request.headers.get('X-Requested-With') == 'XMLHttpRequest':
+        return JsonResponse({
+            'branch': {
+                'id': branch.id,
+                'name': branch.name,
+                'ip_count': branch.ip_count
+            }
+        })
+    
+    return render(request, 'ips/branch_form.html', {
+        'form': form,
+        'branch': branch,
+        'action': 'Edit'
+    })
+
+
+@login_required
+@require_http_methods(["POST", "DELETE"])
+def delete_branch(request, branch_id):
+    """Delete branch - Admin only"""
+    if not is_admin(request.user):
+        return JsonResponse({
+            'success': False,
+            'error': 'You do not have permission to delete branches'
+        }, status=403)
+    
+    branch = get_object_or_404(Branch, id=branch_id)
+    
+    # Check if branch has associated IPs
+    ip_count = branch.ip_count
+    if ip_count > 0:
+        return JsonResponse({
+            'success': False,
+            'error': f'Cannot delete branch with {ip_count} IP address(es). Please delete or reassign IPs first.'
+        }, status=400)
+    
+    try:
+        branch_name = branch.name
+        branch.delete()
+        return JsonResponse({
+            'success': True,
+            'message': f'Branch "{branch_name}" deleted successfully'
+        })
+    except Exception as e:
+        logger.error(f"Error deleting branch: {str(e)}")
+        return JsonResponse({
+            'success': False,
+            'error': str(e)
+        }, status=500)
+
+
+# ==================== END BRANCH CRUD ====================
 
 
 @login_required

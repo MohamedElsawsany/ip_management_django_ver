@@ -11,6 +11,12 @@ urlpatterns = [
     path('', views.index, name='index'),
     path('bulk-insert/', views.bulk_insert, name='bulk_insert'),
     
+    # Branch CRUD (Admin only)
+    path('branches/', views.branches_list, name='branches_list'),
+    path('branches/create/', views.create_branch, name='create_branch'),
+    path('branches/<int:branch_id>/edit/', views.edit_branch, name='edit_branch'),
+    path('branches/<int:branch_id>/delete/', views.delete_branch, name='delete_branch'),
+    
     # IP CRUD operations
     path('ip/<int:ip_id>/edit/', views.edit_ip, name='edit_ip'),
     
