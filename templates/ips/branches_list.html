@@ -52,23 +52,20 @@
                                     </td>
                                     <td>{{ branch.created_at|date:"Y-m-d H:i" }}</td>
                                     <td>
-                                        <!-- Mobile version -->
-                                        <div class="d-md-none d-flex flex-column gap-1">
-                                            <button class="btn btn-sm btn-primary edit-branch-btn" data-id="{{ branch.id }}">
-                                                <i class="fas fa-edit me-1"></i>Edit
-                                            </button>
-                                            <button class="btn btn-sm btn-danger delete-branch-btn" data-id="{{ branch.id }}" data-name="{{ branch.name }}" data-ip-count="{{ branch.ip_count }}">
-                                                <i class="fas fa-trash me-1"></i>Delete
-                                            </button>
-                                        </div>
-                                        
-                                        <!-- Desktop version -->
-                                        <div class="d-none d-md-inline-block">
-                                            <button class="btn btn-sm btn-primary edit-branch-btn me-1" data-id="{{ branch.id }}" title="Edit">
+                                        <div class="btn-group" role="group">
+                                            <button class="btn btn-sm btn-primary edit-branch-btn" 
+                                                    data-id="{{ branch.id }}" 
+                                                    title="Edit Branch">
                                                 <i class="fas fa-edit"></i>
+                                                <span class="d-md-none ms-1">Edit</span>
                                             </button>
-                                            <button class="btn btn-sm btn-danger delete-branch-btn" data-id="{{ branch.id }}" data-name="{{ branch.name }}" data-ip-count="{{ branch.ip_count }}" title="Delete">
+                                            <button class="btn btn-sm btn-danger delete-branch-btn" 
+                                                    data-id="{{ branch.id }}" 
+                                                    data-name="{{ branch.name }}" 
+                                                    data-ip-count="{{ branch.ip_count }}"
+                                                    title="Delete Branch">
                                                 <i class="fas fa-trash"></i>
+                                                <span class="d-md-none ms-1">Delete</span>
                                             </button>
                                         </div>
                                     </td>
@@ -161,13 +158,22 @@ let currentBranchId = null;
 let branchesTable;
 
 $(document).ready(function() {
-    // Initialize DataTable
+    // Initialize DataTable with proper configuration
     branchesTable = $('#branchesTable').DataTable({
         order: [[0, 'asc']],
         pageLength: 25,
+        responsive: true,
+        columnDefs: [
+            { orderable: false, targets: 3 } // Disable sorting on Actions column
+        ],
         language: {
-            emptyTable: "No branches found",
-            zeroRecords: "No matching branches found"
+            emptyTable: "No branches found. Click 'Add New Branch' to create one.",
+            zeroRecords: "No matching branches found",
+            search: "Search branches:",
+            lengthMenu: "Show _MENU_ branches per page",
+            info: "Showing _START_ to _END_ of _TOTAL_ branches",
+            infoEmpty: "No branches available",
+            infoFiltered: "(filtered from _MAX_ total branches)"
         }
     });
     
@@ -310,17 +316,10 @@ function deleteBranch(branchId) {
             $('#deleteModal').modal('hide');
             showAlert('success', response.message);
             
-            // Remove the row from the table
-            $(`tr[data-branch-id="${branchId}"]`).fadeOut('slow', function() {
-                $(this).remove();
-                
-                // Reinitialize DataTable if needed
-                if ($('#branchesTable tbody tr').length === 0) {
-                    setTimeout(function() {
-                        location.reload();
-                    }, 1000);
-                }
-            });
+            // Reload the page to refresh the table
+            setTimeout(function() {
+                location.reload();
+            }, 1000);
         },
         error: function(xhr) {
             hideLoading();
