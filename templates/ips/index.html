@@ -263,11 +263,34 @@ $(document).ready(function() {
         pingIP(ipId, ipAddress);
     });
     
-    // Reset form when modal is closed
+    // Modal event handlers
+    $('#editIPModal').on('shown.bs.modal', function() {
+        // Reinitialize Select2 when modal is fully shown
+        initializeSelect2();
+    });
+
     $('#editIPModal').on('hidden.bs.modal', function() {
         resetForm();
     });
 });
+
+// Initialize Select2 for modal selects
+function initializeSelect2() {
+    // Select all form-select elements within the modal
+    $('#editIPModal .form-select').each(function() {
+        // Check if already initialized
+        if ($(this).hasClass("select2-hidden-accessible")) {
+            $(this).select2('destroy');
+        }
+        
+        // Initialize Select2
+        $(this).select2({
+            theme: 'bootstrap-5',
+            width: '100%',
+            dropdownParent: $('#editIPModal')
+        });
+    });
+}
 
 function loadDeviceTypes() {
     $.get('/api/device-types/')
@@ -472,15 +495,27 @@ function loadIPForEdit(ipId) {
             hideLoading();
             const ip = response.ip;
             
+            // Set input values first
             $('#ipId').val(ip.id);
             $('#ipAddress').val(ip.ip_address);
             $('#deviceName').val(ip.device_name);
+            $('#description').val(ip.description);
+            
+            // Set select values
             $('#deviceType').val(ip.device_type_id);
             $('#subnet').val(ip.subnet_id);
             $('#branch').val(ip.branch_id);
-            $('#description').val(ip.description);
             
+            // Show modal first
             $('#editIPModal').modal('show');
+            
+            // Select2 will be initialized when modal is fully shown (shown.bs.modal event)
+            // Then trigger change to update the UI
+            setTimeout(function() {
+                $('#deviceType').trigger('change');
+                $('#subnet').trigger('change');
+                $('#branch').trigger('change');
+            }, 100);
         },
         error: function(xhr) {
             hideLoading();
@@ -541,6 +576,13 @@ function pingIP(ipId, ipAddress) {
 function resetForm() {
     $('#ipForm')[0].reset();
     $('#ipId').val('');
+    
+    // Destroy Select2 instances to clean up
+    $('#editIPModal .form-select').each(function() {
+        if ($(this).hasClass("select2-hidden-accessible")) {
+            $(this).select2('destroy');
+        }
+    });
 }
 
 function showAlert(type, message) {
