@@ -1,4 +1,4 @@
-# ips/models.py
+# ips/models.py - OPTIMIZED VERSION
 from django.db import models
 from django.core.validators import validate_ipv4_address
 from django.core.exceptions import ValidationError
@@ -12,6 +12,9 @@ class Branch(models.Model):
         db_table = 'branches'
         verbose_name_plural = 'Branches'
         ordering = ['name']
+        indexes = [
+            models.Index(fields=['name'], name='branches_name_idx'),
+        ]
 
     def __str__(self):
         return self.name
@@ -77,6 +80,15 @@ class IP(models.Model):
         ordering = ['ip_address']
         verbose_name = 'IP Address'
         verbose_name_plural = 'IP Addresses'
+        indexes = [
+            # Composite indexes for common queries
+            models.Index(fields=['branch', 'ip_address'], name='ips_branch_ip_idx'),
+            models.Index(fields=['branch', 'subnet'], name='ips_branch_subnet_idx'),
+            # Single column indexes
+            models.Index(fields=['device_name'], name='ips_device_name_idx'),
+            models.Index(fields=['device_type'], name='ips_device_type_idx'),
+            models.Index(fields=['ip_address'], name='ips_ip_address_idx'),
+        ]
 
     def __str__(self):
         return f"{self.ip_address} - {self.device_name}"

@@ -276,52 +276,9 @@ def delete_branch(request, branch_id):
 
 # ==================== END BRANCH CRUD ====================
 
-
-@login_required
-def get_networks(request):
-    """API endpoint to get networks for a branch"""
-    branch_id = request.GET.get('branch_id')
-    
-    if not branch_id:
-        return JsonResponse({'error': 'Branch ID is required'}, status=400)
-    
-    try:
-        branch = get_object_or_404(Branch, id=branch_id)
-        ips = IP.objects.filter(branch_id=branch_id).select_related('subnet')
-        
-        network_dict = {}
-        for ip in ips:
-            try:
-                network = '.'.join(ip.ip_address.split('.')[:-1]) + '.0'
-                key = f"{network}_{ip.subnet.id}"
-                
-                if key not in network_dict:
-                    network_dict[key] = {
-                        'network': network,
-                        'subnet_id': ip.subnet.id,
-                        'prefix': ip.subnet.prefix,
-                        'subnet_mask': ip.subnet.subnet_mask,
-                        'ip_count': 0
-                    }
-                network_dict[key]['ip_count'] += 1
-            except Exception as e:
-                logger.warning(f"Error processing IP {ip.ip_address}: {str(e)}")
-                continue
-        
-        networks_list = sorted(
-            network_dict.values(), 
-            key=lambda x: IP.ip_to_int(x['network'])
-        )
-        
-        return JsonResponse(networks_list, safe=False)
-    except Exception as e:
-        logger.error(f"Error getting networks: {str(e)}")
-        return JsonResponse({'error': str(e)}, status=500)
-
-
 @login_required
 def get_ips_datatable(request):
-    """DataTables server-side processing endpoint"""
+    """DataTables server-side processing endpoint - OPTIMIZED"""
     try:
         draw = int(request.POST.get('draw', 1))
         start = int(request.POST.get('start', 0))
@@ -341,19 +298,24 @@ def get_ips_datatable(request):
                 'data': []
             })
 
+        # Base queryset with select_related to avoid N+1 queries
         queryset = IP.objects.filter(
             branch_id=branch_id
         ).select_related('device_type', 'subnet', 'branch')
 
+        # Apply network filter
         if network:
             network_prefix = '.'.join(network.split('.')[:-1])
             queryset = queryset.filter(ip_address__startswith=network_prefix)
 
+        # Apply subnet filter
         if subnet_id and subnet_id.isdigit():
             queryset = queryset.filter(subnet_id=int(subnet_id))
 
+        # OPTIMIZATION: Only count once for total records (before search filter)
         total_records = queryset.count()
 
+        # Apply search filter
         if search_value:
             queryset = queryset.filter(
                 Q(ip_address__icontains=search_value) |
@@ -361,9 +323,11 @@ def get_ips_datatable(request):
                 Q(description__icontains=search_value) |
                 Q(device_type__name__icontains=search_value)
             )
+            filtered_records = queryset.count()
+        else:
+            filtered_records = total_records
 
-        filtered_records = queryset.count()
-
+        # OPTIMIZATION: Use database-level sorting for IP addresses
         order_columns = [
             'ip_address', 'device_name', 'device_type__name', 
             'subnet__subnet_mask', 'description'
@@ -374,13 +338,31 @@ def get_ips_datatable(request):
         user_is_admin = is_admin(request.user)
         user_branch = get_user_branch(request.user)
         
+        # OPTIMIZATION: For IP sorting, use inet ordering if supported, otherwise string sorting
+        # For PostgreSQL, you can cast to inet type for proper IP sorting
+        # For MySQL/SQLite, string sorting works reasonably well with proper format
         if order_column == 0:
-            ips = list(queryset)
-            ips.sort(
-                key=lambda x: IP.ip_to_int(x.ip_address), 
-                reverse=(order_dir == 'desc')
-            )
-            ips = ips[start:start + length]
+            # Use database ordering with INET cast for PostgreSQL
+            # or raw SQL for proper IP sorting
+            from django.db import connection
+            if 'postgresql' in connection.vendor:
+                order_by = 'CAST(ip_address AS inet)'
+                if order_dir == 'desc':
+                    order_by = f'-{order_by}'
+                ips = queryset.extra(
+                    select={'ip_order': 'CAST(ip_address AS inet)'}
+                ).order_by('ip_order' if order_dir == 'asc' else '-ip_order')[start:start + length]
+            else:
+                # For non-PostgreSQL, use string sorting (works okay for IPs)
+                # Or implement custom sorting
+                if order_dir == 'desc':
+                    order_by = f'-{order_by}'
+                ips = list(queryset)
+                ips.sort(
+                    key=lambda x: IP.ip_to_int(x.ip_address), 
+                    reverse=(order_dir == 'desc')
+                )
+                ips = ips[start:start + length]
         else:
             if order_dir == 'desc':
                 order_by = f'-{order_by}'
@@ -419,6 +401,67 @@ def get_ips_datatable(request):
             'data': [],
             'error': str(e)
         }, status=500)
+
+
+@login_required
+def get_networks(request):
+    """API endpoint to get networks for a branch - PORTABLE VERSION"""
+    branch_id = request.GET.get('branch_id')
+    
+    if not branch_id:
+        return JsonResponse({'error': 'Branch ID is required'}, status=400)
+    
+    try:
+        from django.db.models import Count
+        
+        # Get distinct combinations of network prefix and subnet
+        # Using values() to only load what we need
+        ips_query = IP.objects.filter(
+            branch_id=branch_id
+        ).values(
+            'ip_address',
+            'subnet_id', 
+            'subnet__prefix',
+            'subnet__subnet_mask'
+        )
+        
+        # Group networks efficiently
+        network_dict = {}
+        
+        for ip_data in ips_query.iterator(chunk_size=5000):  # Process in chunks
+            try:
+                # Extract network (first 3 octets)
+                parts = ip_data['ip_address'].split('.')
+                if len(parts) == 4:
+                    network = f"{parts[0]}.{parts[1]}.{parts[2]}.0"
+                    subnet_id = ip_data['subnet_id']
+                    key = f"{network}_{subnet_id}"
+                    
+                    if key not in network_dict:
+                        network_dict[key] = {
+                            'network': network,
+                            'subnet_id': subnet_id,
+                            'prefix': ip_data['subnet__prefix'],
+                            'subnet_mask': ip_data['subnet__subnet_mask'],
+                            'ip_count': 0
+                        }
+                    network_dict[key]['ip_count'] += 1
+                    
+            except (AttributeError, IndexError, KeyError) as e:
+                logger.warning(f"Error processing IP data: {str(e)}")
+                continue
+        
+        # Sort networks by IP value
+        networks_list = sorted(
+            network_dict.values(), 
+            key=lambda x: IP.ip_to_int(x['network'])
+        )
+        
+        return JsonResponse(networks_list, safe=False)
+        
+    except Exception as e:
+        logger.error(f"Error getting networks: {str(e)}", exc_info=True)
+        return JsonResponse({'error': str(e)}, status=500)
 
 
 @login_required
