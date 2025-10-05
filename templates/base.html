@@ -235,6 +235,16 @@
         border-left: 4px solid var(--info-blue);
       }
 
+      /* Alert Container - Fixed positioning */
+      #alertContainer {
+        position: fixed;
+        top: 80px;
+        right: 20px;
+        z-index: 9999;
+        max-width: 500px;
+        min-width: 300px;
+      }
+
       /* Form Styles */
       .form-control,
       .form-select {
@@ -479,6 +489,9 @@
       <div class="loading-spinner"></div>
     </div>
 
+    <!-- Fixed Alert Container -->
+    <div id="alertContainer"></div>
+
     <!-- Navbar -->
     {% if user.is_authenticated %}
     <nav class="navbar navbar-expand-lg navbar-dark">
@@ -539,31 +552,19 @@
     </nav>
     {% endif %}
 
-    <!-- Messages -->
+    <!-- Django Messages - Only show once on page load -->
     {% if messages and user.is_authenticated %}
-    <div class="container mt-3">
-      {% for message in messages %}
-      <div
-        class="alert alert-{{ message.tags }} alert-dismissible fade show"
-        role="alert"
-      >
-        {% if message.tags == 'error' or message.tags == 'danger' %}
-        <i class="fas fa-exclamation-circle me-2"></i>
-        {% elif message.tags == 'success' %}
-        <i class="fas fa-check-circle me-2"></i>
-        {% elif message.tags == 'warning' %}
-        <i class="fas fa-exclamation-triangle me-2"></i>
-        {% elif message.tags == 'info' %}
-        <i class="fas fa-info-circle me-2"></i>
-        {% endif %} {{ message }}
-        <button
-          type="button"
-          class="btn-close"
-          data-bs-dismiss="alert"
-        ></button>
-      </div>
-      {% endfor %}
-    </div>
+    <script>
+      // Store messages in JavaScript to display once
+      window.djangoMessages = [
+        {% for message in messages %}
+        {
+          type: '{{ message.tags }}',
+          text: '{{ message|escapejs }}'
+        }{% if not forloop.last %},{% endif %}
+        {% endfor %}
+      ];
+    </script>
     {% endif %}
 
     <!-- Main Content -->
@@ -592,7 +593,18 @@
     <script src="https://cdn.datatables.net/1.13.4/js/jquery.dataTables.min.js"></script>
     <script src="https://cdn.datatables.net/1.13.4/js/dataTables.bootstrap5.min.js"></script>
 
+    <!-- Select2 -->
+    <script src="https://cdn.jsdelivr.net/npm/select2@4.1.0-rc.0/dist/js/select2.min.js"></script>
+
     <script>
+      // ============================================
+      // GLOBAL FUNCTIONS - MUST BE DEFINED FIRST
+      // ============================================
+      
+      // Global alert management - FIXED VERSION
+      let alertTimeout = null;
+      let alertShown = false;
+
       // Show/hide loading overlay
       function showLoading() {
         document.getElementById("loadingOverlay").style.display = "flex";
@@ -602,10 +614,44 @@
         document.getElementById("loadingOverlay").style.display = "none";
       }
 
-      // Auto-hide alerts after 5 seconds
-      setTimeout(function () {
-        $(".alert").fadeOut("slow");
-      }, 5000);
+      // FIXED: Single alert function that prevents duplicates
+      function showAlert(type, message) {
+        // Clear any existing alerts first
+        $('#alertContainer').empty();
+        
+        // Clear existing timeout
+        if (alertTimeout) {
+          clearTimeout(alertTimeout);
+        }
+
+        const iconMap = {
+          'info': 'info-circle',
+          'success': 'check-circle',
+          'warning': 'exclamation-triangle',
+          'danger': 'exclamation-circle',
+          'error': 'exclamation-circle'
+        };
+
+        // Normalize type (handle 'error' as 'danger')
+        const alertType = type === 'error' ? 'danger' : type;
+        const icon = iconMap[alertType] || 'info-circle';
+
+        const alertHtml = `
+          <div class="alert alert-${alertType} alert-dismissible fade show" role="alert">
+            <i class="fas fa-${icon} me-2"></i>${message}
+            <button type="button" class="btn-close" data-bs-dismiss="alert"></button>
+          </div>
+        `;
+
+        $('#alertContainer').html(alertHtml);
+
+        // Auto-hide after 5 seconds
+        alertTimeout = setTimeout(function() {
+          $('#alertContainer .alert').fadeOut('slow', function() {
+            $(this).remove();
+          });
+        }, 5000);
+      }
 
       // CSRF token setup for AJAX requests
       function getCookie(name) {
@@ -639,8 +685,22 @@
         },
       });
 
-      // Initialize Select2 on all select elements
-      $(document).ready(function () {
+      // ============================================
+      // DOCUMENT READY - RUNS AFTER FUNCTIONS DEFINED
+      // ============================================
+      $(document).ready(function() {
+        // Display Django messages on page load (only once)
+        if (typeof window.djangoMessages !== 'undefined' && window.djangoMessages.length > 0 && !alertShown) {
+          // Show only the first message to avoid spam
+          const msg = window.djangoMessages[0];
+          showAlert(msg.type, msg.text);
+          alertShown = true;
+          
+          // Clear the messages array
+          window.djangoMessages = [];
+        }
+
+        // Initialize Select2 on all select elements
         $(".form-select").select2({
           theme: "bootstrap-5",
           width: "100%",
@@ -649,8 +709,5 @@
     </script>
 
     {% block extra_js %}{% endblock %}
-
-    <!-- Select2 -->
-    <script src="https://cdn.jsdelivr.net/npm/select2@4.1.0-rc.0/dist/js/select2.min.js"></script>
   </body>
 </html>

@@ -265,7 +265,6 @@ $(document).ready(function() {
     
     // Modal event handlers
     $('#editIPModal').on('shown.bs.modal', function() {
-        // Reinitialize Select2 when modal is fully shown
         initializeSelect2();
     });
 
@@ -276,14 +275,11 @@ $(document).ready(function() {
 
 // Initialize Select2 for modal selects
 function initializeSelect2() {
-    // Select all form-select elements within the modal
     $('#editIPModal .form-select').each(function() {
-        // Check if already initialized
         if ($(this).hasClass("select2-hidden-accessible")) {
             $(this).select2('destroy');
         }
         
-        // Initialize Select2
         $(this).select2({
             theme: 'bootstrap-5',
             width: '100%',
@@ -393,7 +389,6 @@ function loadIPTable(branchId, network, subnetId) {
                 data: null,
                 orderable: false,
                 render: function(data, type, row) {
-                    // Mobile version (stacked buttons with text)
                     let mobileButtons = '<div class="d-md-none d-flex flex-column gap-1">';
                     mobileButtons += '<button class="btn btn-sm btn-info ping-btn" data-id="' + row.id + '" data-ip="' + row.ip_address + '"><i class="fas fa-satellite-dish me-1"></i>Ping</button>';
                     
@@ -402,7 +397,6 @@ function loadIPTable(branchId, network, subnetId) {
                     }
                     mobileButtons += '</div>';
                     
-                    // Desktop version (icon-only buttons)
                     let desktopButtons = '<div class="d-none d-md-inline-block">';
                     desktopButtons += '<button class="btn btn-sm btn-info ping-btn me-1" data-id="' + row.id + '" data-ip="' + row.ip_address + '" title="Ping"><i class="fas fa-satellite-dish"></i></button>';
                     
@@ -423,7 +417,6 @@ function loadIPTable(branchId, network, subnetId) {
             processing: "Loading IP addresses..."
         },
         drawCallback: function() {
-            // Re-initialize tooltips if needed
             $('[title]').tooltip();
         }
     });
@@ -441,7 +434,6 @@ function saveIP() {
         description: $('#description').val()
     };
     
-    // Validate required fields
     if (!formData.ip_address || !formData.device_name || !formData.device_type || 
         !formData.subnet || !formData.branch) {
         showAlert('warning', 'Please fill in all required fields');
@@ -470,9 +462,9 @@ function saveIP() {
             hideLoading();
             const response = xhr.responseJSON;
             if (response && response.errors) {
-                let errorMsg = 'Please fix the following errors:\n';
+                let errorMsg = 'Please fix the following errors: ';
                 for (let field in response.errors) {
-                    errorMsg += '- ' + response.errors[field].join(', ') + '\n';
+                    errorMsg += response.errors[field].join(', ') + ' ';
                 }
                 showAlert('danger', errorMsg);
             } else {
@@ -495,22 +487,17 @@ function loadIPForEdit(ipId) {
             hideLoading();
             const ip = response.ip;
             
-            // Set input values first
             $('#ipId').val(ip.id);
             $('#ipAddress').val(ip.ip_address);
             $('#deviceName').val(ip.device_name);
             $('#description').val(ip.description);
             
-            // Set select values
             $('#deviceType').val(ip.device_type_id);
             $('#subnet').val(ip.subnet_id);
             $('#branch').val(ip.branch_id);
             
-            // Show modal first
             $('#editIPModal').modal('show');
             
-            // Select2 will be initialized when modal is fully shown (shown.bs.modal event)
-            // Then trigger change to update the UI
             setTimeout(function() {
                 $('#deviceType').trigger('change');
                 $('#subnet').trigger('change');
@@ -526,13 +513,11 @@ function loadIPForEdit(ipId) {
 }
 
 function pingIP(ipId, ipAddress) {
-    // Show modal
     $('#pingModal').modal('show');
     $('#pingIPAddress').text(ipAddress);
     $('#pingStatus').show();
     $('#pingOutput').hide();
     
-    // Reset header color
     $('#pingModalHeader').removeClass('bg-success bg-danger bg-warning').addClass('bg-primary text-white');
     
     $.ajax({
@@ -577,31 +562,11 @@ function resetForm() {
     $('#ipForm')[0].reset();
     $('#ipId').val('');
     
-    // Destroy Select2 instances to clean up
     $('#editIPModal .form-select').each(function() {
         if ($(this).hasClass("select2-hidden-accessible")) {
             $(this).select2('destroy');
         }
     });
-}
-
-function showAlert(type, message) {
-    const alertHtml = '<div class="alert alert-' + type + ' alert-dismissible fade show" role="alert">' +
-        '<i class="fas fa-' + (type === 'success' ? 'check-circle' : 'exclamation-circle') + ' me-2"></i>' +
-        message +
-        '<button type="button" class="btn-close" data-bs-dismiss="alert"></button>' +
-        '</div>';
-    
-    $('.container-fluid .alert').remove();
-    $('.container-fluid').prepend(alertHtml);
-    
-    setTimeout(function() {
-        $('.alert').fadeOut('slow', function() {
-            $(this).remove();
-        });
-    }, 5000);
-    
-    $('html, body').animate({ scrollTop: 0 }, 'fast');
 }
 </script>
 {% endblock %}

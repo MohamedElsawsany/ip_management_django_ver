@@ -284,12 +284,10 @@ function autoCalculateEndIP() {
     }
     
     try {
-        // Validate IP format
         if (!isValidIP(startIP)) {
             throw new Error('Invalid IP format');
         }
         
-        // Show subnet information
         const subnetMask = subnetOption.data('mask');
         const usableHosts = parseInt(subnetOption.data('usable'));
         const totalAddresses = Math.pow(2, 32 - prefix);
@@ -300,11 +298,9 @@ function autoCalculateEndIP() {
         $('#usableHosts').text(usableHosts.toLocaleString());
         $('#subnetInfoCard').slideDown();
         
-        // Calculate network address and broadcast address
         const startInt = ipToInt(startIP);
         const hostBits = 32 - prefix;
         
-        // Handle all subnet sizes from /1 to /32
         let networkMask;
         if (prefix === 32) {
             networkMask = 0xFFFFFFFF;
@@ -316,43 +312,35 @@ function autoCalculateEndIP() {
         
         const networkAddress = (startInt & networkMask) >>> 0;
         
-        // Calculate broadcast/end address
         let broadcastAddress;
         let firstUsableIP;
         let lastUsableIP;
         
         if (prefix === 32) {
-            // /32 - single host, start and end are the same
             broadcastAddress = networkAddress;
             firstUsableIP = networkAddress;
             lastUsableIP = networkAddress;
         } else if (prefix === 31) {
-            // /31 - point-to-point (RFC 3021), both IPs are usable
             broadcastAddress = (networkAddress | 0x00000001) >>> 0;
             firstUsableIP = networkAddress;
             lastUsableIP = broadcastAddress;
         } else {
-            // All other subnets - exclude network and broadcast
             const wildcardMask = (~networkMask) >>> 0;
             broadcastAddress = (networkAddress | wildcardMask) >>> 0;
-            firstUsableIP = (networkAddress + 1) >>> 0; // Skip network address
-            lastUsableIP = (broadcastAddress - 1) >>> 0; // Skip broadcast address
+            firstUsableIP = (networkAddress + 1) >>> 0;
+            lastUsableIP = (broadcastAddress - 1) >>> 0;
         }
         
-        // Set start IP to first usable IP
         const startIPCalculated = intToIp(firstUsableIP);
         const endIP = intToIp(lastUsableIP);
         $('#endIP').val(endIP);
         
-        // Show network information
         const networkIP = intToIp(networkAddress);
         const broadcastIP = intToIp(broadcastAddress);
         
-        // Update start IP if needed
         if (startIP !== startIPCalculated) {
             $('#startIP').val(startIPCalculated);
             
-            // Show detailed notification about network adjustment
             let notificationMsg = `Network adjusted:<br>`;
             notificationMsg += `<small><strong>Network:</strong> ${networkIP} (excluded)<br>`;
             notificationMsg += `<strong>First usable:</strong> ${startIPCalculated}<br>`;
@@ -370,7 +358,6 @@ function autoCalculateEndIP() {
         autoCalculated = true;
         $('#autoCalcBadge').fadeIn();
         
-        // Calculate range
         calculateRange();
         
     } catch (e) {
@@ -438,113 +425,25 @@ function calculateRange() {
         const total = end - start + 1;
         const formatted = total.toLocaleString();
         
-        // Calculate network size classification for display
         let networkSize = '';
         let subnetPrefix = '';
         
-        // Determine subnet size based on total IPs
         if (total === 1) {
             networkSize = ' (Single Host - /32)';
             subnetPrefix = '/32';
         } else if (total === 2) {
             networkSize = ' (Point-to-Point - /31)';
             subnetPrefix = '/31';
-        } else if (total === 2) {
-            // /30 has 4 total but only 2 usable
-            networkSize = ' (/30 - Point-to-Point subnet)';
-            subnetPrefix = '/30';
-        } else if (total === 6) {
-            networkSize = ' (/29 subnet - 6 usable)';
-            subnetPrefix = '/29';
-        } else if (total === 14) {
-            networkSize = ' (/28 subnet - 14 usable)';
-            subnetPrefix = '/28';
-        } else if (total === 30) {
-            networkSize = ' (/27 subnet - 30 usable)';
-            subnetPrefix = '/27';
-        } else if (total === 62) {
-            networkSize = ' (/26 subnet - 62 usable)';
-            subnetPrefix = '/26';
-        } else if (total === 126) {
-            networkSize = ' (/25 subnet - 126 usable)';
-            subnetPrefix = '/25';
         } else if (total === 254) {
             networkSize = ' (/24 Class C - 254 usable)';
             subnetPrefix = '/24';
-        } else if (total === 510) {
-            networkSize = ' (/23 subnet - 510 usable)';
-            subnetPrefix = '/23';
-        } else if (total === 1022) {
-            networkSize = ' (/22 subnet - 1,022 usable)';
-            subnetPrefix = '/22';
-        } else if (total === 2046) {
-            networkSize = ' (/21 subnet - 2,046 usable)';
-            subnetPrefix = '/21';
-        } else if (total === 4094) {
-            networkSize = ' (/20 subnet - 4,094 usable)';
-            subnetPrefix = '/20';
-        } else if (total === 8190) {
-            networkSize = ' (/19 subnet - 8,190 usable)';
-            subnetPrefix = '/19';
-        } else if (total === 16382) {
-            networkSize = ' (/18 subnet - 16,382 usable)';
-            subnetPrefix = '/18';
-        } else if (total === 32766) {
-            networkSize = ' (/17 subnet - 32,766 usable)';
-            subnetPrefix = '/17';
         } else if (total === 65534) {
             networkSize = ' (/16 Class B - 65,534 usable)';
             subnetPrefix = '/16';
-        } else if (total === 131070) {
-            networkSize = ' (/15 subnet - 131,070 usable)';
-            subnetPrefix = '/15';
-        } else if (total === 262142) {
-            networkSize = ' (/14 subnet - 262,142 usable)';
-            subnetPrefix = '/14';
-        } else if (total === 524286) {
-            networkSize = ' (/13 subnet - 524,286 usable)';
-            subnetPrefix = '/13';
-        } else if (total === 1048574) {
-            networkSize = ' (/12 subnet - 1,048,574 usable)';
-            subnetPrefix = '/12';
-        } else if (total === 2097150) {
-            networkSize = ' (/11 subnet - 2,097,150 usable)';
-            subnetPrefix = '/11';
-        } else if (total === 4194302) {
-            networkSize = ' (/10 subnet - 4,194,302 usable)';
-            subnetPrefix = '/10';
-        } else if (total === 8388606) {
-            networkSize = ' (/9 subnet - 8,388,606 usable)';
-            subnetPrefix = '/9';
         } else if (total === 16777214) {
             networkSize = ' (/8 Class A - 16,777,214 usable)';
             subnetPrefix = '/8';
-        } else if (total === 33554430) {
-            networkSize = ' (/7 subnet - 33,554,430 usable)';
-            subnetPrefix = '/7';
-        } else if (total === 67108862) {
-            networkSize = ' (/6 subnet - 67,108,862 usable)';
-            subnetPrefix = '/6';
-        } else if (total === 134217726) {
-            networkSize = ' (/5 subnet - 134,217,726 usable)';
-            subnetPrefix = '/5';
-        } else if (total === 268435454) {
-            networkSize = ' (/4 subnet - 268,435,454 usable)';
-            subnetPrefix = '/4';
-        } else if (total === 536870910) {
-            networkSize = ' (/3 subnet - 536,870,910 usable)';
-            subnetPrefix = '/3';
-        } else if (total === 1073741822) {
-            networkSize = ' (/2 subnet - 1,073,741,822 usable)';
-            subnetPrefix = '/2';
-        } else if (total === 2147483646) {
-            networkSize = ' (/1 subnet - Half of IPv4 space)';
-            subnetPrefix = '/1';
-        } else if (total > 2147483646) {
-            networkSize = ' (Entire IPv4 space or larger)';
-            subnetPrefix = '';
         } else {
-            // Custom range, not a standard subnet
             networkSize = ' (Custom range)';
             subnetPrefix = '';
         }
@@ -558,13 +457,7 @@ function calculateRange() {
         } else if (total > 1000000) {
             alertClass = 'alert-warning';
             icon = 'fa-exclamation-circle';
-        } else if (total > 100000) {
-            alertClass = 'alert-warning';
-            icon = 'fa-info-circle';
         } else if (total > 10000) {
-            alertClass = 'alert-info';
-            icon = 'fa-info-circle';
-        } else if (total > 1000) {
             alertClass = 'alert-info';
             icon = 'fa-info-circle';
         } else {
@@ -581,7 +474,6 @@ function calculateRange() {
             </p>
         `;
         
-        // Add subnet classification if applicable
         if (subnetPrefix) {
             const selectedPrefix = $('#subnetBulk option:selected').data('prefix');
             if (selectedPrefix) {
@@ -596,15 +488,10 @@ function calculateRange() {
         
         $('#rangeInfo').html(rangeHtml);
         
-        // Add warnings and time estimates
         if (total > 5000000) {
             $('#rangeInfo').append('<hr class="my-2"><small class="text-danger"><strong>⚠️ Range exceeds maximum limit of 5,000,000 IPs</strong><br>Please select a smaller range.</small>');
-        } else if (total > 2000000) {
-            $('#rangeInfo').append('<hr class="my-2"><small class="text-warning">⏱️ Very large range - may take 30-60 minutes to process</small>');
         } else if (total > 1000000) {
             $('#rangeInfo').append('<hr class="my-2"><small class="text-warning">⏱️ Large range - may take 15-30 minutes to process</small>');
-        } else if (total > 500000) {
-            $('#rangeInfo').append('<hr class="my-2"><small class="text-info">⏱️ Medium-large range - may take 5-15 minutes</small>');
         } else if (total > 100000) {
             $('#rangeInfo').append('<hr class="my-2"><small class="text-info">⏱️ Medium range - may take 2-5 minutes</small>');
         } else if (total > 10000) {
@@ -648,10 +535,9 @@ function startBulkInsert() {
         skip_existing: $('#skipExisting').is(':checked')
     };
     
-    // Validate
     if (!formData.start_ip || !formData.end_ip || !formData.branch_id || 
         !formData.subnet_id || !formData.device_type_id) {
-        alert('Please fill in all required fields');
+        showAlert('warning', 'Please fill in all required fields');
         return;
     }
     
@@ -671,11 +557,9 @@ function startBulkInsert() {
         contentType: 'application/json',
         data: JSON.stringify(formData),
         success: function(response) {
-            // Update progress
             $('#progressBar').css('width', '100%').text('100%').removeClass('progress-bar-animated');
             $('#progressText').html('<small class="text-success"><i class="fas fa-check me-2"></i>Complete!</small>');
             
-            // Show results
             setTimeout(function() {
                 showResults(response);
             }, 500);
@@ -685,7 +569,7 @@ function startBulkInsert() {
             $('#progressBar').removeClass('progress-bar-animated').addClass('bg-danger');
             $('#progressText').html('<small class="text-danger"><i class="fas fa-times me-2"></i>Error occurred</small>');
             
-            alert('Error: ' + (response.error || 'Unknown error occurred'));
+            showAlert('danger', response.error || 'Unknown error occurred');
             
             // Re-enable form
             $('#bulkInsertBtn').prop('disabled', false).html('<i class="fas fa-upload me-2"></i>Start Bulk Insert');

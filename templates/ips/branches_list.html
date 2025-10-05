@@ -158,13 +158,13 @@ let currentBranchId = null;
 let branchesTable;
 
 $(document).ready(function() {
-    // Initialize DataTable with proper configuration
+    // Initialize DataTable
     branchesTable = $('#branchesTable').DataTable({
         order: [[0, 'asc']],
         pageLength: 25,
         responsive: true,
         columnDefs: [
-            { orderable: false, targets: 3 } // Disable sorting on Actions column
+            { orderable: false, targets: 3 }
         ],
         language: {
             emptyTable: "No branches found. Click 'Add New Branch' to create one.",
@@ -335,25 +335,6 @@ function resetForm() {
     $('#branchId').val('');
     $('#branchName').removeClass('is-invalid');
     $('#nameError').text('');
-}
-
-function showAlert(type, message) {
-    const alertHtml = '<div class="alert alert-' + type + ' alert-dismissible fade show" role="alert">' +
-        '<i class="fas fa-' + (type === 'success' ? 'check-circle' : 'exclamation-circle') + ' me-2"></i>' +
-        message +
-        '<button type="button" class="btn-close" data-bs-dismiss="alert"></button>' +
-        '</div>';
-    
-    $('.container-fluid .alert').remove();
-    $('.container-fluid').prepend(alertHtml);
-    
-    setTimeout(function() {
-        $('.alert').fadeOut('slow', function() {
-            $(this).remove();
-        });
-    }, 5000);
-    
-    $('html, body').animate({ scrollTop: 0 }, 'fast');
 }
 </script>
 {% endblock %}
