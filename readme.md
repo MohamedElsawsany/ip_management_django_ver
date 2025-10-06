@@ -26,6 +26,12 @@ A comprehensive Django-based web application for managing IP addresses across mu
 ### Bulk Insert
 ![Bulk Insert](docs/screenshots/bulk-insert.png)
 
+### Users List
+![Bulk Insert](docs/screenshots/users-list.png)
+
+### Branches List
+![Bulk Insert](docs/screenshots/branches-list.png)
+
 ## Technology Stack
 
 - **Backend:** Django 5.2
@@ -109,7 +115,7 @@ DATABASES = {
     'default': {
         'ENGINE': 'django.db.backends.postgresql',
         'NAME': 'ip_management_db',      # Your database name
-        'USER': 'ip_admin',               # Your database user
+        'USER': 'postgres',               # Your database user
         'PASSWORD': 'your_secure_password', # Your database password
         'HOST': 'localhost',              # Or your DB server IP
         'PORT': '5432',                   # Default PostgreSQL port
@@ -437,17 +443,12 @@ Contributions are welcome! Please follow these steps:
 4. Push to branch: `git push origin feature-name`
 5. Submit a pull request
 
-## License
-
-This project is licensed under the MIT License - see the LICENSE file for details.
 
 ## Support
 
 For issues, questions, or suggestions:
 
-- **GitHub Issues**: [Create an issue](https://github.com/yourusername/ip_management/issues)
-- **Email**: support@yourdomain.com
-- **Documentation**: [Wiki](https://github.com/yourusername/ip_management/wiki)
+- **Email**: mohamed.elsawsany10@gmail.com
 
 ## Changelog
 
@@ -470,6 +471,6 @@ For issues, questions, or suggestions:
 
 ---
 
-**Made with ❤️ by Your Team Name**
+**Made with ❤️ by Mohamed Elsawsany**
 
-**Project Repository:** https://github.com/yourusername/ip_management
+**Project Repository:** https://github.com/MohamedElsawsany/ip_management_django_ver.git
