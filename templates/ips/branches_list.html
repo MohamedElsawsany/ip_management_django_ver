@@ -227,6 +227,41 @@ $(document).ready(function() {
     });
 });
 
+// Function to reload only the DataTable
+function reloadBranchesTable() {
+    $.ajax({
+        url: window.location.pathname,
+        type: 'GET',
+        headers: {
+            'X-Requested-With': 'XMLHttpRequest'
+        },
+        success: function(response) {
+            // Clear existing table data
+            branchesTable.clear();
+            
+            // Parse the HTML response to extract table rows
+            const parser = new DOMParser();
+            const doc = parser.parseFromString(response, 'text/html');
+            const rows = doc.querySelectorAll('#branchesTable tbody tr');
+            
+            // Add new rows to DataTable
+            rows.forEach(function(row) {
+                const cells = row.querySelectorAll('td');
+                if (cells.length > 0) {
+                    const rowData = Array.from(cells).map(cell => cell.innerHTML);
+                    branchesTable.row.add(rowData);
+                }
+            });
+            
+            // Redraw the table
+            branchesTable.draw();
+        },
+        error: function() {
+            showAlert('danger', 'Error reloading branches table');
+        }
+    });
+}
+
 function saveBranch() {
     const branchId = $('#branchId').val();
     const branchName = $('#branchName').val().trim();
@@ -242,7 +277,6 @@ function saveBranch() {
         name: branchName
     };
     
-    
     $.ajax({
         url: url,
         type: 'POST',
@@ -254,10 +288,8 @@ function saveBranch() {
             $('#branchModal').modal('hide');
             showAlert('success', response.message);
             
-            // Reload the page to refresh the table
-            setTimeout(function() {
-                location.reload();
-            }, 1000);
+            // Reload only the DataTable
+            reloadBranchesTable();
         },
         error: function(xhr) {
             const response = xhr.responseJSON;
@@ -273,7 +305,6 @@ function saveBranch() {
 }
 
 function loadBranchForEdit(branchId) {
-    
     $.ajax({
         url: `/branches/${branchId}/edit/`,
         type: 'GET',
@@ -297,7 +328,6 @@ function loadBranchForEdit(branchId) {
 }
 
 function deleteBranch(branchId) {
-    
     $.ajax({
         url: `/branches/${branchId}/delete/`,
         type: 'POST',
@@ -308,10 +338,8 @@ function deleteBranch(branchId) {
             $('#deleteModal').modal('hide');
             showAlert('success', response.message);
             
-            // Reload the page to refresh the table
-            setTimeout(function() {
-                location.reload();
-            }, 1000);
+            // Reload only the DataTable
+            reloadBranchesTable();
         },
         error: function(xhr) {
             $('#deleteModal').modal('hide');
