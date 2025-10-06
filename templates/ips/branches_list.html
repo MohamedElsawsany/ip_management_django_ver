@@ -242,7 +242,6 @@ function saveBranch() {
         name: branchName
     };
     
-    showLoading();
     
     $.ajax({
         url: url,
@@ -252,7 +251,6 @@ function saveBranch() {
             'X-Requested-With': 'XMLHttpRequest'
         },
         success: function(response) {
-            hideLoading();
             $('#branchModal').modal('hide');
             showAlert('success', response.message);
             
@@ -262,7 +260,6 @@ function saveBranch() {
             }, 1000);
         },
         error: function(xhr) {
-            hideLoading();
             const response = xhr.responseJSON;
             
             if (response && response.errors && response.errors.name) {
@@ -276,7 +273,6 @@ function saveBranch() {
 }
 
 function loadBranchForEdit(branchId) {
-    showLoading();
     
     $.ajax({
         url: `/branches/${branchId}/edit/`,
@@ -285,7 +281,6 @@ function loadBranchForEdit(branchId) {
             'X-Requested-With': 'XMLHttpRequest'
         },
         success: function(response) {
-            hideLoading();
             const branch = response.branch;
             
             $('#branchId').val(branch.id);
@@ -295,7 +290,6 @@ function loadBranchForEdit(branchId) {
             $('#branchModal').modal('show');
         },
         error: function(xhr) {
-            hideLoading();
             const response = xhr.responseJSON;
             showAlert('danger', response.error || 'Error loading branch');
         }
@@ -303,7 +297,6 @@ function loadBranchForEdit(branchId) {
 }
 
 function deleteBranch(branchId) {
-    showLoading();
     
     $.ajax({
         url: `/branches/${branchId}/delete/`,
@@ -312,7 +305,6 @@ function deleteBranch(branchId) {
             'X-Requested-With': 'XMLHttpRequest'
         },
         success: function(response) {
-            hideLoading();
             $('#deleteModal').modal('hide');
             showAlert('success', response.message);
             
@@ -322,7 +314,6 @@ function deleteBranch(branchId) {
             }, 1000);
         },
         error: function(xhr) {
-            hideLoading();
             $('#deleteModal').modal('hide');
             const response = xhr.responseJSON;
             showAlert('danger', response.error || 'Error deleting branch');

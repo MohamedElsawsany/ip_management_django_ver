@@ -327,7 +327,6 @@ function loadSubnets() {
 }
 
 function loadNetworks(branchId) {
-    showLoading();
     $.get('/api/networks/', {branch_id: branchId})
         .done(function(data) {
             const select = $('#networkSelect');
@@ -342,10 +341,8 @@ function loadNetworks(branchId) {
             }
             
             select.prop('disabled', false);
-            hideLoading();
         })
         .fail(function(xhr, status, error) {
-            hideLoading();
             console.error('Error loading networks:', error);
             showAlert('danger', 'Error loading networks. Please try again.');
         });
@@ -440,7 +437,6 @@ function saveIP() {
         return;
     }
     
-    showLoading();
     
     $.ajax({
         url: url,
@@ -450,7 +446,6 @@ function saveIP() {
             'X-Requested-With': 'XMLHttpRequest'
         },
         success: function(response) {
-            hideLoading();
             $('#editIPModal').modal('hide');
             showAlert('success', response.message || 'IP address updated successfully');
             
@@ -459,7 +454,7 @@ function saveIP() {
             }
         },
         error: function(xhr) {
-            hideLoading();
+
             const response = xhr.responseJSON;
             if (response && response.errors) {
                 let errorMsg = 'Please fix the following errors: ';
@@ -475,7 +470,6 @@ function saveIP() {
 }
 
 function loadIPForEdit(ipId) {
-    showLoading();
     
     $.ajax({
         url: '/ip/' + ipId + '/edit/',
@@ -484,7 +478,6 @@ function loadIPForEdit(ipId) {
             'X-Requested-With': 'XMLHttpRequest'
         },
         success: function(response) {
-            hideLoading();
             const ip = response.ip;
             
             $('#ipId').val(ip.id);
@@ -505,7 +498,6 @@ function loadIPForEdit(ipId) {
             }, 100);
         },
         error: function(xhr) {
-            hideLoading();
             const response = xhr.responseJSON;
             showAlert('danger', response.error || 'Error loading IP address');
         }
