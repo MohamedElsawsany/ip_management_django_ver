@@ -1,4 +1,5 @@
 # ips/views.py
+from urllib import request
 from django.shortcuts import render, redirect, get_object_or_404
 from django.contrib.auth.decorators import login_required
 from django.contrib.auth import login, logout, authenticate
@@ -351,7 +352,7 @@ def get_ips_datatable(request):
         # Check if user can edit
         user_is_admin = is_admin(request.user)
         user_branch = get_user_branch(request.user)
-
+        user_branch_id = user_branch.id if user_branch else None
         # OPTIMIZATION: For IP sorting, use inet ordering if supported, otherwise string sorting
         # For PostgreSQL, you can cast to inet type for proper IP sorting
         # For MySQL/SQLite, string sorting works reasonably well with proper format
@@ -388,7 +389,7 @@ def get_ips_datatable(request):
         data = []
         for ip in ips:
             # Determine if user can edit this IP
-            can_edit = user_is_admin or (user_branch and user_branch.id == ip.branch.id)
+            can_edit = user_is_admin or (user_branch_id and user_branch_id == ip.branch.id)
 
             data.append(
                 {
