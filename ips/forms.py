@@ -1,6 +1,8 @@
 # ips/forms.py
 from django import forms
 from .models import IP, Branch, DeviceType, Subnet
+from django.contrib.auth.models import User
+from django.contrib.auth.forms import UserCreationForm
 
 
 class IPForm(forms.ModelForm):
@@ -175,5 +177,143 @@ class BulkIPForm(forms.Form):
                     raise forms.ValidationError('Start IP must be less than or equal to End IP')
             except Exception as e:
                 raise forms.ValidationError(f'Invalid IP address format: {str(e)}')
+
+        return cleaned_data
+
+class UserForm(UserCreationForm):
+    """Form for creating new users"""
+    class Meta:
+        model = User
+        fields = ['username', 'email', 'first_name', 'last_name', 'password1', 'password2']
+        widgets = {
+            'username': forms.TextInput(attrs={
+                'class': 'form-control',
+                'placeholder': 'Enter username',
+                'required': True
+            }),
+            'email': forms.EmailInput(attrs={
+                'class': 'form-control',
+                'placeholder': 'user@example.com',
+                'required': False
+            }),
+            'first_name': forms.TextInput(attrs={
+                'class': 'form-control',
+                'placeholder': 'First name',
+                'required': False
+            }),
+            'last_name': forms.TextInput(attrs={
+                'class': 'form-control',
+                'placeholder': 'Last name',
+                'required': False
+            }),
+        }
+        labels = {
+            'username': 'Username *',
+            'email': 'Email',
+            'first_name': 'First Name',
+            'last_name': 'Last Name',
+        }
+
+    def __init__(self, *args, **kwargs):
+        super().__init__(*args, **kwargs)
+        self.fields['password1'].widget.attrs.update({
+            'class': 'form-control',
+            'placeholder': 'Enter password'
+        })
+        self.fields['password2'].widget.attrs.update({
+            'class': 'form-control',
+            'placeholder': 'Confirm password'
+        })
+
+
+class UserEditForm(forms.ModelForm):
+    """Form for editing existing users"""
+    is_admin = forms.BooleanField(
+        required=False,
+        widget=forms.CheckboxInput(attrs={
+            'class': 'form-check-input'
+        }),
+        label='Administrator Privileges'
+    )
+    branch = forms.ModelChoiceField(
+        queryset=Branch.objects.all(),
+        required=False,
+        widget=forms.Select(attrs={
+            'class': 'form-select'
+        }),
+        label='Assigned Branch',
+        help_text='Leave empty for admin users or users with access to all branches'
+    )
+    is_active = forms.BooleanField(
+        required=False,
+        widget=forms.CheckboxInput(attrs={
+            'class': 'form-check-input'
+        }),
+        label='Active'
+    )
+    
+    class Meta:
+        model = User
+        fields = ['username', 'email', 'first_name', 'last_name', 'is_active']
+        widgets = {
+            'username': forms.TextInput(attrs={
+                'class': 'form-control',
+                'placeholder': 'Enter username',
+                'required': True
+            }),
+            'email': forms.EmailInput(attrs={
+                'class': 'form-control',
+                'placeholder': 'user@example.com'
+            }),
+            'first_name': forms.TextInput(attrs={
+                'class': 'form-control',
+                'placeholder': 'First name'
+            }),
+            'last_name': forms.TextInput(attrs={
+                'class': 'form-control',
+                'placeholder': 'Last name'
+            }),
+        }
+        labels = {
+            'username': 'Username *',
+            'email': 'Email',
+            'first_name': 'First Name',
+            'last_name': 'Last Name',
+        }
+
+    def __init__(self, *args, **kwargs):
+        super().__init__(*args, **kwargs)
+        if self.instance and self.instance.pk:
+            # Set initial values from profile
+            if hasattr(self.instance, 'profile'):
+                self.fields['is_admin'].initial = self.instance.profile.is_admin
+                self.fields['branch'].initial = self.instance.profile.branch
+            self.fields['is_active'].initial = self.instance.is_active
+
+
+class PasswordChangeForm(forms.Form):
+    """Form for changing user password"""
+    new_password1 = forms.CharField(
+        widget=forms.PasswordInput(attrs={
+            'class': 'form-control',
+            'placeholder': 'Enter new password'
+        }),
+        label='New Password *'
+    )
+    new_password2 = forms.CharField(
+        widget=forms.PasswordInput(attrs={
+            'class': 'form-control',
+            'placeholder': 'Confirm new password'
+        }),
+        label='Confirm Password *'
+    )
+
+    def clean(self):
+        cleaned_data = super().clean()
+        password1 = cleaned_data.get('new_password1')
+        password2 = cleaned_data.get('new_password2')
+
+        if password1 and password2 and password1 != password2:
+            raise forms.ValidationError('Passwords do not match')
 
         return cleaned_data

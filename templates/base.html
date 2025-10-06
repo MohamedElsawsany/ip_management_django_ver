@@ -451,7 +451,6 @@
     {% block extra_css %}{% endblock %}
   </head>
   <body>
-
     <!-- Fixed Alert Container -->
     <div id="alertContainer"></div>
 
@@ -472,11 +471,7 @@
         </button>
         <div class="collapse navbar-collapse" id="navbarNav">
           <ul class="navbar-nav ms-auto">
-            <li class="nav-item">
-              <a class="nav-link" href="{% url 'index' %}">
-                <i class="fas fa-home me-1"></i>Dashboard
-              </a>
-            </li>
+            {% if is_admin %}
             <li class="nav-item">
               <a class="nav-link" href="{% url 'branches_list' %}">
                 <i class="fas fa-building me-1"></i>Branches
@@ -487,6 +482,12 @@
                 <i class="fas fa-upload me-1"></i>Bulk Insert
               </a>
             </li>
+            <li class="nav-item">
+              <a class="nav-link" href="{% url 'users_list' %}">
+                <i class="fas fa-users me-1"></i>Users
+              </a>
+            </li>
+            {% endif %}
             <li class="nav-item dropdown">
               <a
                 class="nav-link dropdown-toggle"
@@ -563,7 +564,7 @@
       // ============================================
       // GLOBAL FUNCTIONS - MUST BE DEFINED FIRST
       // ============================================
-      
+
       // Global alert management - FIXED VERSION
       let alertTimeout = null;
       let alertShown = false;
@@ -571,24 +572,24 @@
       // FIXED: Single alert function that prevents duplicates
       function showAlert(type, message) {
         // Clear any existing alerts first
-        $('#alertContainer').empty();
-        
+        $("#alertContainer").empty();
+
         // Clear existing timeout
         if (alertTimeout) {
           clearTimeout(alertTimeout);
         }
 
         const iconMap = {
-          'info': 'info-circle',
-          'success': 'check-circle',
-          'warning': 'exclamation-triangle',
-          'danger': 'exclamation-circle',
-          'error': 'exclamation-circle'
+          info: "info-circle",
+          success: "check-circle",
+          warning: "exclamation-triangle",
+          danger: "exclamation-circle",
+          error: "exclamation-circle",
         };
 
         // Normalize type (handle 'error' as 'danger')
-        const alertType = type === 'error' ? 'danger' : type;
-        const icon = iconMap[alertType] || 'info-circle';
+        const alertType = type === "error" ? "danger" : type;
+        const icon = iconMap[alertType] || "info-circle";
 
         const alertHtml = `
           <div class="alert alert-${alertType} alert-dismissible fade show" role="alert">
@@ -596,11 +597,11 @@
           </div>
         `;
 
-        $('#alertContainer').html(alertHtml);
+        $("#alertContainer").html(alertHtml);
 
         // Auto-hide after 5 seconds
-        alertTimeout = setTimeout(function() {
-          $('#alertContainer .alert').fadeOut('slow', function() {
+        alertTimeout = setTimeout(function () {
+          $("#alertContainer .alert").fadeOut("slow", function () {
             $(this).remove();
           });
         }, 5000);
@@ -641,14 +642,18 @@
       // ============================================
       // DOCUMENT READY - RUNS AFTER FUNCTIONS DEFINED
       // ============================================
-      $(document).ready(function() {
+      $(document).ready(function () {
         // Display Django messages on page load (only once)
-        if (typeof window.djangoMessages !== 'undefined' && window.djangoMessages.length > 0 && !alertShown) {
+        if (
+          typeof window.djangoMessages !== "undefined" &&
+          window.djangoMessages.length > 0 &&
+          !alertShown
+        ) {
           // Show only the first message to avoid spam
           const msg = window.djangoMessages[0];
           showAlert(msg.type, msg.text);
           alertShown = true;
-          
+
           // Clear the messages array
           window.djangoMessages = [];
         }
