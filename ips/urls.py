@@ -24,6 +24,7 @@ urlpatterns = [
     path("api/device-types/", views.get_device_types, name="api_device_types"),
     path("api/subnets/", views.get_subnets, name="api_subnets"),
     path("api/ips/datatable/", views.get_ips_datatable, name="api_ips_datatable"),
+    path("api/ips/bulk-delete/", views.bulk_delete_ips, name="api_bulk_delete_ips"),  # NEW
     # User Management (Admin only)
     path("users/", views.users_list, name="users_list"),
     path("users/create/", views.create_user, name="create_user"),

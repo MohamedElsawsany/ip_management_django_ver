@@ -1194,3 +1194,73 @@ def toggle_user_status(request, user_id):
     except Exception as e:
         logger.error(f"Error toggling user status: {str(e)}")
         return JsonResponse({"success": False, "error": str(e)}, status=500)
+
+@login_required
+@require_http_methods(["POST"])
+def bulk_delete_ips(request):
+    """Bulk delete IP addresses - Admin only"""
+    if not is_admin(request.user):
+        return JsonResponse(
+            {
+                "success": False,
+                "error": "You do not have permission to delete IP addresses",
+            },
+            status=403,
+        )
+
+    try:
+        data = json.loads(request.body)
+        ip_ids = data.get("ip_ids", [])
+
+        if not ip_ids:
+            return JsonResponse(
+                {"success": False, "error": "No IP addresses selected"}, status=400
+            )
+
+        if not isinstance(ip_ids, list):
+            return JsonResponse(
+                {"success": False, "error": "Invalid data format"}, status=400
+            )
+
+        # Validate that all IDs are integers
+        try:
+            ip_ids = [int(ip_id) for ip_id in ip_ids]
+        except (ValueError, TypeError):
+            return JsonResponse(
+                {"success": False, "error": "Invalid IP ID format"}, status=400
+            )
+
+        # Get the IPs to delete
+        ips_to_delete = IP.objects.filter(id__in=ip_ids)
+        deleted_count = ips_to_delete.count()
+
+        if deleted_count == 0:
+            return JsonResponse(
+                {"success": False, "error": "No IP addresses found to delete"},
+                status=404,
+            )
+
+        # Log the deletion for audit purposes
+        logger.info(
+            f"User {request.user.username} is deleting {deleted_count} IP address(es): {ip_ids}"
+        )
+
+        # Perform the deletion
+        with transaction.atomic():
+            ips_to_delete.delete()
+
+        return JsonResponse(
+            {
+                "success": True,
+                "message": f"Successfully deleted {deleted_count} IP address(es)",
+                "deleted_count": deleted_count,
+            }
+        )
+
+    except json.JSONDecodeError:
+        return JsonResponse(
+            {"success": False, "error": "Invalid JSON data"}, status=400
+        )
+    except Exception as e:
+        logger.error(f"Error in bulk delete: {str(e)}", exc_info=True)
+        return JsonResponse({"success": False, "error": str(e)}, status=500)
