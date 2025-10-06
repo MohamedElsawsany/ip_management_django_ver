@@ -337,16 +337,6 @@ netstat -ano | findstr :8000
 taskkill /PID <PID> /F
 ```
 
-### Static Files Not Loading
-
-**Problem:** CSS/JS files not loading
-
-**Solution:**
-```bash
-python manage.py collectstatic --clear
-python manage.py collectstatic
-```
-
 ### Migration Issues
 
 **Problem:** Migration conflicts
