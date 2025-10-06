@@ -20,17 +20,20 @@ A comprehensive Django-based web application for managing IP addresses across mu
 
 ## Screenshots
 
+### Login
+![Dashboard](docs/screenshots/login.png)
+
 ### Dashboard
 ![Dashboard](docs/screenshots/dashboard.png)
 
 ### Bulk Insert
-![Bulk Insert](docs/screenshots/bulk-insert.png)
+![Bulk Insert](docs/screenshots/bulk_insert.png)
 
 ### Users List
-![Bulk Insert](docs/screenshots/users-list.png)
+![Users List](docs/screenshots/users_list.png)
 
 ### Branches List
-![Bulk Insert](docs/screenshots/branches-list.png)
+![Branches List](docs/screenshots/branches_list.png)
 
 ## Technology Stack
 

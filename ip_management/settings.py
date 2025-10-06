@@ -53,9 +53,9 @@ WSGI_APPLICATION = 'ip_management.wsgi.application'
 DATABASES = {
     'default': {
         'ENGINE': 'django.db.backends.postgresql',
-        'NAME': 'Your Database Name',   # your database name
+        'NAME': 'ip_management',   # your database name
         'USER': 'postgres',           # your db user
-        'PASSWORD': 'Your Password',   # your db password
+        'PASSWORD': 'Admin@1234',   # your db password
         'HOST': 'localhost',          # or IP address of your DB server
         'PORT': '5432',               # default PostgreSQL port
     }
