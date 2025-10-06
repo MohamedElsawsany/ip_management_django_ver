@@ -723,16 +723,19 @@ def bulk_insert(request):
             logger.error(f"Bulk insert error: {str(e)}")
             return JsonResponse({"success": False, "error": str(e)}, status=500)
 
+    # GET request - show the form
     branches = Branch.objects.all().order_by("name")
     device_types = DeviceType.objects.all().order_by("name")
     subnets = Subnet.objects.all().order_by("prefix")
 
-    return render(
-        request,
-        "ips/bulk_insert.html",
-        {"branches": branches, "device_types": device_types, "subnets": subnets},
-    )
+    context = {
+        "branches": branches,
+        "device_types": device_types,
+        "subnets": subnets,
+        "is_admin": True,  # ADD THIS LINE - User is already verified as admin
+    }
 
+    return render(request, "ips/bulk_insert.html", context)
 
 @login_required
 def ping_ip(request, ip_id):
