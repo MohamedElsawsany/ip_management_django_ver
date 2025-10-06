@@ -471,6 +471,11 @@
         </button>
         <div class="collapse navbar-collapse" id="navbarNav">
           <ul class="navbar-nav ms-auto">
+            <li class="nav-item">
+              <a class="nav-link" href="{% url 'index' %}">
+                  <i class="fas fa-home me-1"></i>Dashboard
+              </a>
+            </li>
             {% if is_admin %}
             <li class="nav-item">
               <a class="nav-link" href="{% url 'branches_list' %}">
