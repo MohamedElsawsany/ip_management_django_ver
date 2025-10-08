@@ -506,6 +506,77 @@ def edit_ip(request, ip_id):
         return redirect("index")
 
     if request.method == "POST":
+        # For normal users, only allow editing specific fields
+        if not user_is_admin:
+            # Create a copy of POST data
+            post_data = request.POST.copy()
+            # Keep original values for restricted fields
+            post_data['ip_address'] = ip.ip_address
+            post_data['subnet'] = ip.subnet.id
+            post_data['branch'] = ip.branch.id
+            form = IPForm(post_data, instance=ip)
+        else:
+            form = IPForm(request.POST, instance=ip)
+            
+        if form.is_valid():
+            try:
+                form.save()
+                if request.headers.get("X-Requested-With") == "XMLHttpRequest":
+                    return JsonResponse(
+                        {"success": True, "message": "IP address updated successfully"}
+                    )
+                messages.success(request, "IP address updated successfully")
+                return redirect("index")
+            except Exception as e:
+                logger.error(f"Error updating IP: {str(e)}")
+                if request.headers.get("X-Requested-With") == "XMLHttpRequest":
+                    return JsonResponse({"success": False, "error": str(e)}, status=400)
+                messages.error(request, f"Error: {str(e)}")
+        else:
+            if request.headers.get("X-Requested-With") == "XMLHttpRequest":
+                return JsonResponse(
+                    {"success": False, "errors": form.errors}, status=400
+                )
+    else:
+        form = IPForm(instance=ip)
+
+    if request.headers.get("X-Requested-With") == "XMLHttpRequest":
+        return JsonResponse(
+            {
+                "ip": {
+                    "id": ip.id,
+                    "ip_address": ip.ip_address,
+                    "device_name": ip.device_name,
+                    "device_type_id": ip.device_type.id,
+                    "subnet_id": ip.subnet.id,
+                    "branch_id": ip.branch.id,
+                    "description": ip.description or "",
+                },
+                "is_admin": user_is_admin  # Send admin status to frontend
+            }
+        )
+
+    return render(request, "ips/ip_form.html", {"form": form, "ip": ip})
+    """Edit existing IP address with permission check"""
+    ip = get_object_or_404(IP, id=ip_id)
+
+    # Check permissions
+    user_is_admin = is_admin(request.user)
+    user_branch = get_user_branch(request.user)
+
+    if not user_is_admin and (not user_branch or user_branch.id != ip.branch.id):
+        if request.headers.get("X-Requested-With") == "XMLHttpRequest":
+            return JsonResponse(
+                {
+                    "success": False,
+                    "error": "You do not have permission to edit this IP address",
+                },
+                status=403,
+            )
+        messages.error(request, "You do not have permission to edit this IP address")
+        return redirect("index")
+
+    if request.method == "POST":
         form = IPForm(request.POST, instance=ip)
         if form.is_valid():
             try:

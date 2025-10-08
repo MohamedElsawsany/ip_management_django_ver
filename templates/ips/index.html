@@ -146,9 +146,13 @@
                 <form id="ipForm">
                     {% csrf_token %}
                     <input type="hidden" id="ipId" name="ip_id">
+                    <input type="hidden" id="isAdminUser" value="{{ is_admin|yesno:'true,false' }}">
                     
                     <div class="mb-3">
-                        <label for="ipAddress" class="form-label">IP Address *</label>
+                        <label for="ipAddress" class="form-label">
+                            IP Address *
+                            <span id="readOnlyBadge1" class="badge bg-secondary ms-2" style="display: none;">Read-only</span>
+                        </label>
                         <input type="text" class="form-control" id="ipAddress" name="ip_address" 
                                placeholder="192.168.1.1" required>
                     </div>
@@ -167,14 +171,20 @@
                     </div>
                     
                     <div class="mb-3">
-                        <label for="subnet" class="form-label">Subnet Mask *</label>
+                        <label for="subnet" class="form-label">
+                            Subnet Mask *
+                            <span id="readOnlyBadge2" class="badge bg-secondary ms-2" style="display: none;">Read-only</span>
+                        </label>
                         <select class="form-select" id="subnet" name="subnet" required>
                             <option value="">-- Select Subnet --</option>
                         </select>
                     </div>
                     
                     <div class="mb-3">
-                        <label for="branch" class="form-label">Branch *</label>
+                        <label for="branch" class="form-label">
+                            Branch *
+                            <span id="readOnlyBadge3" class="badge bg-secondary ms-2" style="display: none;">Read-only</span>
+                        </label>
                         <select class="form-select" id="branch" name="branch" required>
                             <option value="">-- Select Branch --</option>
                             {% if branches %}
@@ -276,6 +286,7 @@ let ipTable;
 let currentIPId = null;
 const isAdmin = {{ is_admin|yesno:"true,false" }};
 let selectedIPs = new Set();
+let currentUserIsAdmin = false;
 
 $(document).ready(function() {
     // Check if branches exist
@@ -392,12 +403,49 @@ $(document).ready(function() {
     // Modal event handlers
     $('#editIPModal').on('shown.bs.modal', function() {
         initializeSelect2();
+        applyFieldRestrictions();
     });
 
     $('#editIPModal').on('hidden.bs.modal', function() {
         resetForm();
     });
 });
+
+// Apply field restrictions based on user role
+function applyFieldRestrictions() {
+    if (!currentUserIsAdmin) {
+        // Disable fields that normal users can't edit
+        $('#ipAddress').prop('readonly', true).addClass('bg-light');
+        $('#subnet').prop('disabled', true);
+        $('#branch').prop('disabled', true);
+        
+        // Show read-only badges
+        $('#readOnlyBadge1, #readOnlyBadge2, #readOnlyBadge3').show();
+        
+        // Update Select2 disabled state
+        $('#subnet').select2('destroy').select2({
+            theme: 'bootstrap-5',
+            width: '100%',
+            dropdownParent: $('#editIPModal'),
+            disabled: true
+        });
+        
+        $('#branch').select2('destroy').select2({
+            theme: 'bootstrap-5',
+            width: '100%',
+            dropdownParent: $('#editIPModal'),
+            disabled: true
+        });
+    } else {
+        // Enable all fields for admin
+        $('#ipAddress').prop('readonly', false).removeClass('bg-light');
+        $('#subnet').prop('disabled', false);
+        $('#branch').prop('disabled', false);
+        
+        // Hide read-only badges
+        $('#readOnlyBadge1, #readOnlyBadge2, #readOnlyBadge3').hide();
+    }
+}
 
 // Update bulk actions bar visibility and count
 function updateBulkActionsBar() {
@@ -597,7 +645,7 @@ function loadIPTable(branchId, network, subnetId) {
             }
         },
         columns: columns,
-        order: [[isAdmin ? 1 : 0, 'asc']], // Adjust order column index based on checkbox presence
+        order: [[isAdmin ? 1 : 0, 'asc']],
         pageLength: 10,
         language: {
             emptyTable: "No IP addresses found for this branch",
@@ -637,8 +685,13 @@ function saveIP() {
         description: $('#description').val()
     };
     
-    if (!formData.ip_address || !formData.device_name || !formData.device_type || 
-        !formData.subnet || !formData.branch) {
+    if (!formData.device_name || !formData.device_type) {
+        showAlert('warning', 'Please fill in all required fields');
+        return;
+    }
+    
+    // For admin, check all required fields
+    if (currentUserIsAdmin && (!formData.ip_address || !formData.subnet || !formData.branch)) {
         showAlert('warning', 'Please fill in all required fields');
         return;
     }
@@ -682,6 +735,9 @@ function loadIPForEdit(ipId) {
         },
         success: function(response) {
             const ip = response.ip;
+            
+            // Store whether the current editing context is admin
+            currentUserIsAdmin = response.is_admin || false;
             
             $('#ipId').val(ip.id);
             $('#ipAddress').val(ip.ip_address);
@@ -756,6 +812,13 @@ function pingIP(ipId, ipAddress) {
 function resetForm() {
     $('#ipForm')[0].reset();
     $('#ipId').val('');
+    currentUserIsAdmin = false;
+    
+    // Reset field states
+    $('#ipAddress').prop('readonly', false).removeClass('bg-light');
+    $('#subnet').prop('disabled', false);
+    $('#branch').prop('disabled', false);
+    $('#readOnlyBadge1, #readOnlyBadge2, #readOnlyBadge3').hide();
     
     $('#editIPModal .form-select').each(function() {
         if ($(this).hasClass("select2-hidden-accessible")) {

@@ -55,7 +55,7 @@ DATABASES = {
         'ENGINE': 'django.db.backends.postgresql',
         'NAME': 'Your Database Name',   # your database name
         'USER': 'postgres',           # your db user
-        'PASSWORD': 'Your Password',   # your db password
+        'PASSWORD': 'Your password',   # your db password
         'HOST': 'localhost',          # or IP address of your DB server
         'PORT': '5432',               # default PostgreSQL port
     }
@@ -75,6 +75,8 @@ AUTH_PASSWORD_VALIDATORS = [
         'NAME': 'django.contrib.auth.password_validation.NumericPasswordValidator',
     },
 ]
+
+ALLOWED_HOSTS = ['*']
 
 LANGUAGE_CODE = 'en-us'
 TIME_ZONE = 'UTC'
